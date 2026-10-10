@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>XPath Studio · 欢迎</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 48px 24px; min-height: 100vh;
+    font-family: "PingFang SC", "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(1000px 500px at 15% -10%, #e5e9ff, transparent 60%), #f4f6fb;
+    color: #1c2130; display: flex; justify-content: center;
+  }
+  .wrap { max-width: 720px; width: 100%; }
+  .hero { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .logo {
+    width: 46px; height: 46px; border-radius: 13px; display: grid; place-items: center;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6); box-shadow: 0 8px 22px rgba(99,102,241,.35);
+  }
+  h1 { margin: 0; font-size: 21px; }
+  .sub { color: #6b7280; font-size: 13px; margin-top: 3px; }
+  .card {
+    background: #fff; border: 1px solid #e4e7f0; border-radius: 14px;
+    padding: 20px 22px; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.04), 0 8px 24px rgba(16,24,40,.05);
+  }
+  h2 { margin: 0 0 12px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  h2::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: linear-gradient(135deg,#6366f1,#8b5cf6); }
+  ol, ul { margin: 0; padding-left: 20px; font-size: 13.5px; line-height: 2; }
+  code {
+    font-family: Consolas, "Cascadia Code", monospace; font-size: 12.5px;
+    background: #f2f4fa; border: 1px solid #e4e7f0; border-radius: 5px; padding: 1px 6px;
+  }
+  kbd {
+    font-family: Consolas, monospace; font-size: 12px; background: #fff;
+    border: 1px solid #d3d8e6; border-bottom-width: 2px; border-radius: 5px; padding: 1px 7px;
+  }
+  .tip { font-size: 12.5px; color: #6b7280; line-height: 1.9; margin-top: 10px; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 20px; background: rgba(99,102,241,.12); color: #6366f1; }
+  .pill.g { background: rgba(16,185,129,.14); color: #059669; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9">
+        <circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+      </svg>
+    </div>
+    <div>
+      <h1>XPath Studio 已就绪</h1>
+      <div class="sub">在真实页面上拾取元素、生成稳健定位器，并实时高亮匹配节点</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>快速上手</h2>
+    <ol>
+      <li>打开任意网页，点击浏览器工具栏中的 <b>XPath Studio</b> 图标（或按 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd>）唤出面板。</li>
+      <li>按 <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> 或点面板上的 <b>◎</b> 进入拾取模式，鼠标悬停高亮；方向键 ↑ / ↓ 切换父子层级，Ctrl（Mac 为 Cmd）＋左键锁定，点击「确认抓取」完成选择。</li>
+      <li>面板会立即给出 <b>最短唯一 XPath</b>、稳定性评分、CSS 选择器与 Playwright 定位器，点击任意一条即可复制或直接校验。</li>
+      <li>页面上的所有匹配节点会被绿色方框高亮，选中目标为紫色，数字角标表示匹配序号。</li>
+    </ol>
+    <div class="tip">也可以在面板顶部的输入框里手动输入 XPath，回车即时校验并高亮。</div>
+  </div>
+
+  <div class="card">
+    <h2>面板功能</h2>
+    <ul>
+      <li><span class="pill">定位器</span> 候选 XPath（按稳健度排序）、CSS 选择器、Playwright 定位器</li>
+      <li><span class="pill">匹配</span> 匹配到的节点列表，点击可滚动定位并闪烁</li>
+      <li><span class="pill g">扫描</span> 一键找出页面所有可交互元素及其最佳定位器</li>
+      <li><span class="pill">AI</span> 用自然语言描述元素，由本地桌面版调用大模型生成（可选）</li>
+    </ul>
+    <div class="tip">面板可拖动、可折叠、可切换深浅色，位置会被记住。</div>
+  </div>
+
+  <div class="card">
+    <h2>关于 AI 生成（可选）</h2>
+    <p class="tip" style="margin:0">
+      扩展本身<b>完全离线可用</b>，不配置 AI 也能正常拾取、生成与高亮。<br>
+      若想用自然语言生成，请先启动桌面版 <b>XPath Studio</b>（默认监听 <code>http://127.0.0.1:8790</code>），
+      并在桌面版的「AI 设置」里填好模型接口。之后在面板的 AI 标签页点「测试」确认连通即可。
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>说明</h2>
+    <ul>
+      <li>扩展不联网、不上传任何数据；页面内容只在你的浏览器本地处理。</li>
+      <li>浏览器内置页面（<code>chrome://</code>、扩展商店等）不允许注入脚本，面板无法使用。</li>
+      <li>快捷键可在 <code>chrome://extensions/shortcuts</code> 中修改。</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

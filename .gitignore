@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 工具产物
+.playwright-cli/
+shots/
+
+# 本地 Agent 指南（兼容 Agent.MD / AGENT.md 等大小写）
+[Aa][Gg][Ee][Nn][Tt].[Mm][Dd]
+[Aa][Gg][Ee][Nn][Tt][Ss].[Mm][Dd]
+
+# 本地工作记录、截图与交付副本
+.workbuddy-ai/
+.codex/
+.agents/
+output/
+outputs/
+node_modules/
+.pytest_cache/
+.ruff_cache/
+*.log
+
+# 本机配置与密钥
+.env
+.env.*
+!.env.example
+.xpath_studio/
+*.pem
+*.key
+*.p12
+*.pfx
+*.crx

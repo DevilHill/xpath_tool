@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "XPath Studio · 元素定位",
+  "version": "1.2.1",
+  "description": "在浏览器里直接拾取元素、生成稳健 XPath / CSS / Playwright 定位器，并实时高亮页面上所有匹配节点。",
+
+  "permissions": ["storage", "activeTab", "tabs", "scripting", "alarms", "webNavigation"],
+  "host_permissions": [
+    "<all_urls>",
+    "ws://127.0.0.1/*",
+    "ws://localhost/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "action": {
+    "default_title": "XPath Studio（点击开关面板）",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*", "file:///*"],
+      "js": ["lib/engine.js", "ui.js", "content.js"],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
+    }
+  ],
+
+  "commands": {
+    "toggle-panel": {
+      "suggested_key": { "default": "Alt+Shift+X" },
+      "description": "开关 XPath Studio 面板"
+    },
+    "toggle-picker": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "开始 / 停止元素拾取"
+    }
+  }
+}
