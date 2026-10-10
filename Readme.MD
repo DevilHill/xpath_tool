@@ -77,4 +77,6 @@ node tools/test_install_ui.js
 
 通过 [Issues](https://github.com/DevilHill/xpath_tool/issues) 报告问题，附复现步骤和脱敏日志。PR 请说明改动与验证结果；定位算法改动需保持 Python / JavaScript 两端一致。
 
-[.gitignore](.gitignore) 已忽略 `Agent.MD` 的大小写变体、本地工作记录、构建产物和密钥。仓库目前未提供 `LICENSE`，未声明开源许可证。
+[.gitignore](.gitignore) 已忽略 `Agent.MD` 的大小写变体、本地工作记录、构建产物和密钥。
+
+本项目采用 [MIT 许可证](LICENSE)。
