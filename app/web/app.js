@@ -1,24 +1,9 @@
-/* ============================================================
-   XPath Studio · 前端逻辑（原生 JS，无框架）
-   ============================================================ */
+/* XPath Studio：浏览器抓取与实时 XPath 工作台。 */
 (() => {
   "use strict";
-
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-
-  const state = {
-    token: null,
-    tree: null,
-    parents: {},        // idx -> parentIdx
-    nodeApi: {},        // idx -> { expand, collapse, row, node }
-    rowMap: {},         // idx -> row element
-    selected: null,
-    hitIdxs: [],
-    config: loadConfig(),
-  };
-
-  /* ---------------------- 通用工具 ---------------------- */
+  const state = { config: loadConfig() };
   function el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -65,29 +50,6 @@
   });
   applyTheme(localStorage.getItem("xpath-studio-theme") || "light");
 
-  /* ---------------------- 标签页 ---------------------- */
-  $$("#sourceTabs .tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      $$("#sourceTabs .tab").forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      $$(".pane").forEach((p) => p.classList.toggle("active", p.dataset.pane === tab.dataset.tab));
-    });
-  });
-
-  $$("#resultTabs .tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      $$("#resultTabs .tab").forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      $$(".r-pane").forEach((p) => p.classList.toggle("active", p.dataset.rpane === tab.dataset.rtab));
-    });
-  });
-
-  function switchResultTab(name) {
-    $$("#resultTabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.rtab === name));
-    $$(".r-pane").forEach((p) => p.classList.toggle("active", p.dataset.rpane === name));
-  }
-
-  /* ---------------------- 评分 / 徽章 ---------------------- */
   function scoreEl(score, level) {
     const cls = score >= 70 ? "stable" : score >= 45 ? "moderate" : "fragile";
     return el("span", "badge " + cls, score + " " + level);
@@ -127,489 +89,103 @@
     });
   }
 
-  /* ---------------------- 文件上传 ---------------------- */
-  const dropzone = $("#dropzone");
-  const fileInput = $("#fileInput");
-  dropzone.addEventListener("click", () => fileInput.click());
-  dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("over"); });
-  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("over"));
-  dropzone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    dropzone.classList.remove("over");
-    if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
-  });
-  fileInput.addEventListener("change", () => { if (fileInput.files[0]) readFile(fileInput.files[0]); });
 
-  function readFile(file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      $("#htmlInput").value = reader.result;
-      // 切回粘贴页并解析
-      $$("#sourceTabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "paste"));
-      $$(".pane").forEach((p) => p.classList.toggle("active", p.dataset.pane === "paste"));
-      toast(`已载入 ${file.name}`);
-      parseDoc();
-    };
-    reader.readAsText(file, "utf-8");
-  }
-
-  /* ---------------------- 网址抓取 ---------------------- */
-  $("#btnFetch").addEventListener("click", async () => {
-    const url = $("#urlInput").value.trim();
-    if (!url) return toast("请输入网址");
-    const btn = $("#btnFetch");
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span>抓取中…';
-    try {
-      const res = await api("/api/fetch", { url });
-      if (!res.ok) throw new Error(res.error || "抓取失败");
-      $("#htmlInput").value = res.html;
-      $$("#sourceTabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "paste"));
-      $$(".pane").forEach((p) => p.classList.toggle("active", p.dataset.pane === "paste"));
-      toast(`抓取成功（${res.length} 字符）`);
-      parseDoc();
-    } catch (e) {
-      toast(e.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "抓取页面源码";
-    }
-  });
-
-  /* ---------------------- 解析 ---------------------- */
-  $("#btnParse").addEventListener("click", parseDoc);
-
-  async function parseDoc() {
-    const html = $("#htmlInput").value;
-    if (!html.trim()) return toast("请先输入 HTML 内容");
-    const btn = $("#btnParse");
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spin"></span>解析中…';
-    try {
-      const res = await api("/api/parse", { html });
-      if (!res.ok) throw new Error(res.error || "解析失败");
-      state.token = res.token;
-      state.tree = res.tree;
-      state.parents = {};
-      state.nodeApi = {};
-      state.rowMap = {};
-      state.selected = null;
-      state.hitIdxs = [];
-      buildParents(res.tree, null);
-      renderTree(res.tree);
-      $("#docStat").textContent = `${res.count} 节点`;
-      $("#treeStat").textContent = `共 ${res.count} 个节点 · ${res.desc.top.slice(0, 4).map(([t, n]) => `${t}×${n}`).join(" ")}`;
-      $("#genBlock").hidden = true;
-      clearMatches();
-      toast(`解析完成，共 ${res.count} 个节点`);
-    } catch (e) {
-      toast(e.message);
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M12 5l7 7-7 7"/></svg>解析文档';
-    }
-  }
-
-  function buildParents(node, parentIdx) {
-    state.parents[node.idx] = parentIdx;
-    (node.children || []).forEach((c) => buildParents(c, node.idx));
-  }
-
-  /* ---------------------- DOM 树渲染（懒加载） ---------------------- */
-  function renderTree(tree) {
-    const box = $("#domTree");
-    box.innerHTML = "";
-    box.appendChild(renderNode(tree, 0));
-  }
-
-  function renderNode(node, depth) {
-    const wrap = el("div", "tree-node");
-    const row = el("div", "tree-row");
-    row.dataset.idx = node.idx;
-
-    const hasKids = node.children && node.children.length > 0;
-
-    const tw = el("span", "tw" + (hasKids ? "" : " leaf"), hasKids ? "▸" : "");
-    row.appendChild(tw);
-
-    row.appendChild(el("span", "t-tag", "<" + node.tag));
-
-    for (const [k, v] of Object.entries(node.attrs || {})) {
-      row.appendChild(el("span", "t-attr-name", " " + k));
-      row.appendChild(el("span", "t-attr-val", '="' + v + '"'));
-    }
-    row.appendChild(el("span", "t-tag", ">"));
-
-    if (node.text) row.appendChild(el("span", "t-text", " " + node.text));
-
-    const searchBlob = (node.tag + " " + Object.keys(node.attrs || {}).join(" ") + " " +
-      Object.values(node.attrs || {}).join(" ") + " " + (node.text || "")).toLowerCase();
-    row.dataset.search = searchBlob;
-
-    wrap.appendChild(row);
-
-    const kidsBox = el("div", "tree-children");
-    kidsBox.style.display = "none";
-    wrap.appendChild(kidsBox);
-
-    let loaded = false;
-    let expanded = false;
-
-    const self = {
-      node,
-      row,
-      expand() {
-        if (!hasKids) return;
-        if (!loaded) {
-          node.children.forEach((c) => kidsBox.appendChild(renderNode(c, depth + 1)));
-          loaded = true;
-        }
-        expanded = true;
-        kidsBox.style.display = "";
-        tw.textContent = "▾";
-      },
-      collapse() {
-        if (!hasKids) return;
-        expanded = false;
-        kidsBox.style.display = "none";
-        tw.textContent = "▸";
-      },
-      isExpanded: () => expanded,
-      get kidsBox() { return kidsBox; },
-      reload() { loaded = false; kidsBox.innerHTML = ""; this.expand(); },
-    };
-
-    state.nodeApi[node.idx] = self;
-    state.rowMap[node.idx] = row;
-
-    if (hasKids) {
-      tw.addEventListener("click", (e) => {
-        e.stopPropagation();
-        expanded ? self.collapse() : self.expand();
-      });
-    }
-    row.addEventListener("click", () => selectNode(node.idx));
-
-    if (hasKids && depth < 2) self.expand();
-    return wrap;
-  }
-
-  function expandTo(idx) {
-    const chain = [];
-    let cur = idx;
-    while (cur != null && cur !== undefined) {
-      chain.push(cur);
-      cur = state.parents[cur];
-    }
-    chain.reverse();
-    chain.forEach((i) => { const a = state.nodeApi[i]; if (a) a.expand(); });
-  }
-
-  /* ---------------------- 选中节点 ---------------------- */
-  async function selectNode(idx) {
-    // 取消旧选中
-    if (state.selected != null && state.rowMap[state.selected]) {
-      state.rowMap[state.selected].classList.remove("selected");
-    }
-    state.selected = idx;
-    expandTo(idx);
-    const row = state.rowMap[idx];
-    if (row) {
-      row.classList.add("selected");
-      row.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-
-    if (state.token == null) return;
-    try {
-      const res = await api("/api/gen", { token: state.token, idx });
-      if (!res.ok) return;
-      renderGen(res);
-      $("#xpathInput").value = res.best || "";
-      if (res.best) validate(res.best);
-    } catch (e) {
-      /* 忽略 */
-    }
-  }
-
-  function renderGen(res) {
-    const block = $("#genBlock");
-    block.hidden = false;
-    const t = res.target || {};
-    $("#genTarget").textContent = `<${t.tag}> #${t.idx}` + (t.dynamicId ? " · ⚠动态ID" : "");
-
-    const list = $("#genList");
-    list.innerHTML = "";
-    (res.xpath || []).forEach((c) => {
-      const item = el("div", "cand");
-      item.appendChild(scoreBar(c.score));
-      const main = el("div", "cand-main");
-      main.appendChild(el("div", "cand-xpath", c.xpath));
-      const meta = el("div", "cand-meta");
-      meta.appendChild(el("span", "cand-label", c.label + (c.note ? " · " + c.note : "")));
-      if (c.warn) meta.appendChild(el("span", "cand-note", "⚠ " + c.warn));
-      main.appendChild(meta);
-      item.appendChild(main);
-      item.appendChild(countBadge(c.count));
-      item.appendChild(scoreEl(c.score, c.level));
-      item.addEventListener("click", () => {
-        $("#xpathInput").value = c.xpath;
-        validate(c.xpath, true);
-      });
-      list.appendChild(item);
-    });
-
-    // CSS 选择器
-    const css = res.css;
-    const cssBlock = $("#cssBlock");
-    const cssList = $("#cssList");
-    cssList.innerHTML = "";
-    if (css && css.css) {
-      cssBlock.hidden = false;
-      const item = el("div", "cand");
-      item.appendChild(scoreBar(css.score));
-      const main = el("div", "cand-main");
-      main.appendChild(el("div", "cand-xpath", css.css));
-      const meta = el("div", "cand-meta");
-      meta.appendChild(el("span", "cand-label", "CSS 选择器" + (css.count == null ? " · 未校验" : "")));
-      main.appendChild(meta);
-      item.appendChild(main);
-      if (css.count != null) item.appendChild(countBadge(css.count));
-      item.appendChild(scoreEl(css.score, css.level));
-      item.addEventListener("click", () => {
-        navigator.clipboard.writeText(css.css).then(() => toast("已复制 CSS"), () => toast("复制失败"));
-      });
-      cssList.appendChild(item);
-    } else {
-      cssBlock.hidden = true;
-    }
-
-    // Playwright
-    const pw = res.playwright || [];
-    const pwBlock = $("#pwBlock");
-    const pwList = $("#pwList");
-    pwList.innerHTML = "";
-    if (pw.length) {
-      pwBlock.hidden = false;
-      pw.forEach((p) => {
-        const item = el("div", "cand");
-        item.appendChild(scoreBar(p.score));
-        const main = el("div", "cand-main");
-        main.appendChild(el("div", "cand-xpath", "page." + p.code));
-        const meta = el("div", "cand-meta");
-        meta.appendChild(el("span", "cand-label", "Playwright · " + p.label));
-        main.appendChild(meta);
-        item.appendChild(main);
-        item.appendChild(scoreEl(p.score, p.score >= 70 ? "稳定" : "一般"));
-        item.addEventListener("click", () => {
-          navigator.clipboard.writeText(p.code).then(() => toast("已复制 Playwright 定位器"), () => toast("复制失败"));
-        });
-        pwList.appendChild(item);
-      });
-    } else {
-      pwBlock.hidden = true;
-    }
-  }
-
-  /* ---------------------- 校验 ---------------------- */
-  $("#btnValidate").addEventListener("click", () => validate(null, true));
-  $("#xpathInput").addEventListener("keydown", (e) => { if (e.key === "Enter") validate(null, true); });
-  $("#btnCopy").addEventListener("click", async () => {
-    const v = $("#xpathInput").value;
-    if (!v) return;
-    try { await navigator.clipboard.writeText(v); toast("已复制"); }
-    catch { $("#xpathInput").select(); document.execCommand("copy"); toast("已复制"); }
-  });
-  $("#btnClear").addEventListener("click", () => {
-    $("#xpathInput").value = "";
-    $("#validateMsg").className = "msg";
-    $("#validateMsg").textContent = "";
-    clearMatches();
+  // 校验使用浏览器实时 DOM，不解析或缓存 HTML 快照。
+  let validationId = 0;
+  let commandQueue = Promise.resolve();
+  function resetMatches() {
     $("#matchCount").textContent = "—";
-    $("#genBlock").hidden = true;
-  });
-
+    $("#matchList").textContent = "校验后，浏览器匹配元素会同步高亮。";
+  }
+  function browserCommand(action, xpath, id) {
+    const target = lastPick && lastPick.frame && Object.assign({}, lastPick.frame, {
+      browserId: lastPick.browserId,
+    });
+    const task = commandQueue.catch(() => {}).then(() => {
+      // 丢弃尚未发送的旧查询；串行投递，防止慢请求覆盖后续高亮或清空。
+      if (id !== validationId) return null;
+      return api("/api/bridge/validate", { target, action, xpath });
+    });
+    commandQueue = task;
+    return task;
+  }
   async function validate(xpath, record) {
-    if (state.token == null) return toast("请先解析文档");
-    const xp = xpath != null ? xpath : $("#xpathInput").value;
-    if (!xp.trim()) return;
+    const xp = (xpath || $("#xpathInput").value).trim();
+    if (!lastPick) return toast("请先在浏览器中抓取元素");
+    if (!xp) return toast("请输入 XPath");
+    $("#xpathInput").value = xp;
+    const id = ++validationId;
     const msg = $("#validateMsg");
     msg.className = "msg loading";
-    msg.innerHTML = '<span class="spin"></span>校验中…';
+    msg.textContent = "正在浏览器中校验并高亮…";
+    resetMatches();
     try {
-      const res = await api("/api/validate", { token: state.token, xpath: xp });
-      if (res.ok === false) { msg.className = "msg err"; msg.textContent = res.error; return; }
-      if (!res.valid) {
-        msg.className = "msg err";
-        msg.textContent = "✕ 表达式无效：" + res.error;
-        clearMatches();
-        $("#matchCount").textContent = "—";
-        return;
-      }
-      const n = res.count;
-      msg.className = "msg " + (n === 0 ? "warn" : n === 1 ? "ok" : "warn");
-      msg.textContent = n === 0
-        ? "⚠ 表达式有效，但没有匹配到任何节点"
-        : n === 1
-          ? "✓ 匹配唯一节点"
-          : `⚠ 匹配到 ${n} 个节点（建议加条件缩小范围）` + (res.truncated ? "，仅显示前 500 条" : "");
-      $("#matchCount").textContent = n + " 个";
-      renderMatches(res.matches || []);
-      highlightMatches(res.matches || []);
+      const result = await browserCommand("validate", xp, id);
+      if (!result || id !== validationId) return;
+      if (!result.ok) throw new Error(result.error || "浏览器未确认校验结果");
       if (record) pushHistory(xp);
-    } catch (e) {
-      msg.className = "msg err";
-      msg.textContent = "请求失败：" + e.message;
-    }
-  }
-
-  function renderMatches(matches) {
-    const list = $("#matchList");
-    list.innerHTML = "";
-    if (!matches.length) {
-      list.appendChild(el("p", "muted small", "没有匹配到节点。"));
-      return;
-    }
-    matches.slice(0, 200).forEach((m, i) => {
-      const item = el("div", "match-item");
-      if (m.kind === "value") {
-        item.appendChild(el("span", "match-idx", "值"));
-        const body = el("div", "match-body");
-        body.appendChild(el("div", "match-tag", "非节点结果"));
-        body.appendChild(el("div", "match-preview", m.value));
-        item.appendChild(body);
-        list.appendChild(item);
-        return;
-      }
-      item.appendChild(el("span", "match-idx", "#" + m.idx));
-      const body = el("div", "match-body");
-      body.appendChild(el("div", "match-tag", "<" + m.tag + ">"));
-      const preview = Object.entries(m.attrs || {}).map(([k, v]) => `${k}="${v}"`).join(" ");
-      body.appendChild(el("div", "match-preview", (preview + " " + (m.text || "")).trim() || "(无属性)"));
-      item.appendChild(body);
-      item.addEventListener("click", () => {
-        if (m.idx != null) selectNode(m.idx);
-      });
-      list.appendChild(item);
-    });
-  }
-
-  function clearMatches() {
-    $$(".tree-row.hit").forEach((r) => r.classList.remove("hit"));
-    state.hitIdxs = [];
-    $("#matchList").innerHTML = "";
-    $("#matchList").appendChild(el("p", "muted small", "执行校验后显示匹配到的节点。"));
-  }
-
-  function highlightMatches(matches) {
-    $$(".tree-row.hit").forEach((r) => r.classList.remove("hit"));
-    state.hitIdxs = [];
-    const idxs = matches.filter((m) => m.idx != null).map((m) => m.idx);
-    idxs.slice(0, 300).forEach((idx) => {
-      expandTo(idx);
-      const row = state.rowMap[idx];
-      if (row) { row.classList.add("hit"); state.hitIdxs.push(idx); }
-    });
-  }
-
-  /* ---------------------- 自然语言检索（离线） ---------------------- */
-  $("#btnNL").addEventListener("click", nlSearch);
-  $("#nlInput").addEventListener("keydown", (e) => { if (e.key === "Enter") nlSearch(); });
-
-  async function nlSearch() {
-    if (state.token == null) return toast("请先解析文档");
-    const q = $("#nlInput").value.trim();
-    if (!q) return toast("请输入描述");
-    const list = $("#nlList");
-    list.innerHTML = '<div class="cand"><div class="cand-main"><div class="cand-xpath"><span class="spin"></span>检索中…</div></div></div>';
-    try {
-      const res = await api("/api/nl", { token: state.token, query: q });
-      list.innerHTML = "";
-      if (!res.matches || !res.matches.length) {
-        list.appendChild(el("p", "muted small", "没有找到相关节点，换个说法试试。"));
-        return;
-      }
-      res.matches.forEach((m) => {
-        const item = el("div", "cand");
-        const main = el("div", "cand-main");
-        main.appendChild(el("div", "cand-xpath", `<${m.tag}> ` + (m.text || Object.values(m.attrs || {})[0] || "")));
-        const meta = el("div", "cand-meta");
-        meta.appendChild(el("span", "cand-label", `#${m.idx}` + (m.reason ? " · " + m.reason : "")));
-        main.appendChild(meta);
-        item.appendChild(main);
-        item.appendChild(el("span", "badge multi", "分 " + m.score));
-        item.addEventListener("click", () => selectNode(m.idx));
-        list.appendChild(item);
-      });
-    } catch (e) {
-      list.innerHTML = "";
-      toast(e.message);
-    }
-  }
-
-  /* ---------------------- AI 生成 ---------------------- */
-  $("#btnAI").addEventListener("click", aiGenerate);
-  $("#aiInput").addEventListener("keydown", (e) => { if (e.key === "Enter") aiGenerate(); });
-
-  async function aiGenerate() {
-    if (state.token == null) return toast("请先解析文档");
-    const instruction = $("#aiInput").value.trim();
-    if (!instruction) return toast("请描述要定位的元素");
-    const cfg = loadConfig();
-    if (!cfg.apiKey) {
-      toast("请先在「AI 设置」中填写 API Key");
-      openSettings();
-      return;
-    }
-    const msg = $("#aiMsg");
-    const list = $("#aiList");
-    msg.className = "msg loading";
-    msg.innerHTML = '<span class="spin"></span>AI 正在分析页面结构…';
-    list.innerHTML = "";
-    const btn = $("#btnAI");
-    btn.disabled = true;
-    try {
-      const res = await api("/api/ai", { token: state.token, instruction, config: cfg });
-      if (!res.ok) {
+      if (!result.valid) {
         msg.className = "msg err";
-        msg.textContent = "✕ " + res.error;
+        msg.textContent = "表达式无效：" + result.error;
+        $("#matchCount").textContent = "0";
         return;
       }
-      const v = res.validation;
-      const n = v ? v.count : null;
+      const n = result.count;
       msg.className = "msg " + (n === 1 ? "ok" : "warn");
-      msg.textContent = (res.explain ? res.explain + "  " : "") +
-        (v ? `（本地校验：${v.valid ? n + " 个匹配" : "无效表达式"}）` : "");
-      renderAiResults(res);
+      msg.textContent = n === 0 ? "没有匹配元素，已清除浏览器高亮" :
+        result.highlighted ? "匹配 " + n + " 个节点 · 浏览器已同步高亮" +
+          (result.truncated ? "（最多展示 500 个）" : "") : "表达式有效 · 返回值，无元素可高亮";
+      $("#matchCount").textContent = String(n);
+      const list = $("#matchList");
+      list.innerHTML = "";
+      (result.matches || []).forEach((m, index) => {
+        const item = el("div", "match-item");
+        if (m.kind === "value") item.appendChild(el("code", "mono", m.value));
+        else {
+          const attrs = m.attrs || {};
+          item.appendChild(el("div", "match-title mono", (index + 1) + " <" + m.tag +
+            (attrs.id ? "#" + attrs.id : "") + ">"));
+          if (m.text) item.appendChild(el("div", "muted small", m.text));
+        }
+        list.appendChild(item);
+      });
+      if (!n) list.textContent = "当前来源网页中没有匹配元素。";
     } catch (e) {
+      if (id !== validationId) return;
       msg.className = "msg err";
-      msg.textContent = "请求失败：" + e.message;
-    } finally {
-      btn.disabled = false;
+      msg.textContent = e.message;
     }
   }
-
-  function renderAiResults(res) {
-    const list = $("#aiList");
-    list.innerHTML = "";
-    const all = [res.xpath, ...(res.alternatives || [])].filter(Boolean);
-    all.forEach((xp, i) => {
-      const item = el("div", "cand");
-      const main = el("div", "cand-main");
-      main.appendChild(el("div", "cand-xpath", xp));
-      const meta = el("div", "cand-meta");
-      meta.appendChild(el("span", "cand-label", i === 0 ? "AI 推荐" : "备选 " + i));
-      main.appendChild(meta);
-      item.appendChild(main);
-      item.appendChild(el("span", "badge uni", "使用"));
-      item.addEventListener("click", () => {
-        $("#xpathInput").value = xp;
-        validate(xp, true);
-      });
-      list.appendChild(item);
-    });
-    if (res.xpath) { $("#xpathInput").value = res.xpath; validate(res.xpath, true); }
-  }
-
+  $("#btnValidate").addEventListener("click", () => validate(null, true));
+  $("#xpathInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); validate(null, true); }
+  });
+  $("#xpathInput").addEventListener("input", () => {
+    validationId++;
+    resetMatches();
+    $("#validateMsg").className = "msg";
+    $("#validateMsg").textContent = "表达式已修改，点击校验更新浏览器高亮";
+  });
+  $("#btnCopy").addEventListener("click", () => {
+    const value = $("#xpathInput").value.trim();
+    if (value) copyText(value, "已复制 XPath");
+  });
+  $("#btnClear").addEventListener("click", async () => {
+    const id = ++validationId;
+    $("#xpathInput").value = "";
+    resetMatches();
+    $("#validateMsg").className = "msg";
+    $("#validateMsg").textContent = "";
+    if (!lastPick) return;
+    try {
+      const result = await browserCommand("clear", "", id);
+      if (!result || id !== validationId) return;
+      $("#validateMsg").className = "msg " + (result.ok ? "ok" : "err");
+      $("#validateMsg").textContent = result.ok ? "浏览器高亮已清除" : result.error;
+    } catch (e) {
+      if (id === validationId) $("#validateMsg").textContent = "清除高亮失败：" + e.message;
+    }
+  });
   /* ---------------------- 设置弹窗 ---------------------- */
   const PRESETS = {
     deepseek: { baseUrl: "https://api.deepseek.com", model: "deepseek-chat" },
@@ -682,228 +258,6 @@
     }
   });
 
-  /* ---------------------- DOM 过滤 / 展开折叠 ---------------------- */
-  $("#domFilter").addEventListener("input", (e) => {
-    const q = e.target.value.trim().toLowerCase();
-    const rows = $$(".tree-row");
-    if (!q) { rows.forEach((r) => r.classList.remove("dim")); return; }
-    rows.forEach((r) => {
-      const hit = (r.dataset.search || "").includes(q);
-      r.classList.toggle("dim", !hit);
-    });
-  });
-
-  $("#btnExpandAll").addEventListener("click", () => {
-    Object.values(state.nodeApi).forEach((a) => a.expand());
-  });
-  $("#btnCollapseAll").addEventListener("click", () => {
-    const root = state.tree;
-    if (!root) return;
-    // 仅保留根展开
-    Object.entries(state.nodeApi).forEach(([idx, a]) => {
-      if (Number(idx) !== root.idx) a.collapse();
-    });
-  });
-
-  /* ---------------------- 批量验证 ---------------------- */
-  $("#btnVerify").addEventListener("click", async () => {
-    if (state.token == null) return toast("请先解析文档");
-    const selectors = $("#verifyInput").value.split("\n").map((s) => s.trim()).filter(Boolean);
-    if (!selectors.length) return toast("请输入至少一个定位器");
-    const summary = $("#verifySummary");
-    const list = $("#verifyList");
-    summary.className = "msg loading";
-    summary.innerHTML = '<span class="spin"></span>验证中…';
-    list.innerHTML = "";
-    try {
-      const res = await api("/api/verify", { token: state.token, selectors });
-      const ok = res.results.filter((r) => r.valid).length;
-      const unique = res.results.filter((r) => r.valid && r.count === 1).length;
-      summary.className = "msg " + (ok === res.results.length ? "ok" : "warn");
-      summary.textContent = `共 ${res.results.length} 条：有效 ${ok} 条，其中唯一定位 ${unique} 条`;
-      res.results.forEach((r) => {
-        const item = el("div", "match-item");
-        const st = r.valid ? (r.count === 1 ? "✓" : "⚠") : "✕";
-        item.appendChild(el("span", "match-idx", st));
-        const body = el("div", "match-body");
-        body.appendChild(el("div", "match-tag", r.selector));
-        body.appendChild(el("div", "match-preview",
-          r.error ? r.error
-            : r.note ? r.note
-              : `${r.type.toUpperCase()} · 匹配 ${r.count} 个${r.count === 1 ? "（唯一）" : ""}`));
-
-        // 失配时给出自愈建议（Healenium 式相似度）
-        if ((r.heal || []).length) {
-          const box = el("div", "heal-box");
-          box.appendChild(el("div", "heal-title", "✚ 已失效，找到相似元素（点击采用）"));
-          r.heal.forEach((h) => {
-            const row = el("div", "heal-row");
-            row.appendChild(el("span", "heal-score " + (h.confidence === "高" ? "hi" : h.confidence === "中" ? "mid" : "lo"),
-              h.confidence + " " + Math.round((h.score || 0) * 100) + "%"));
-            const hb = el("div", "heal-body");
-            hb.appendChild(el("div", "heal-xpath", h.xpath));
-            if (h.reason) hb.appendChild(el("div", "heal-reason", h.reason));
-            row.appendChild(hb);
-            row.addEventListener("click", async (e) => {
-              e.stopPropagation();
-              // 先让 selectNode 完成：它会用「该节点的最佳定位器」覆盖 XPath 输入框，
-              // 顺序反了的话用户点出来的自愈建议会被它盖掉。
-              if (h.idx != null) await selectNode(h.idx);
-              $("#xpathInput").value = h.xpath;
-              pushHistory(h.xpath);
-              await validate(h.xpath, true);
-              toast("已采用自愈建议（" + h.confidence + "置信度）");
-            });
-            box.appendChild(row);
-          });
-          body.appendChild(box);
-        }
-
-        item.appendChild(body);
-        if (r.idx != null) item.addEventListener("click", () => selectNode(r.idx));
-        list.appendChild(item);
-      });
-    } catch (e) {
-      summary.className = "msg err";
-      summary.textContent = "请求失败：" + e.message;
-    }
-  });
-
-  /* ---------------------- 页面扫描 ---------------------- */
-  let scanData = null;
-
-  $("#btnScan").addEventListener("click", async () => {
-    if (state.token == null) return toast("请先解析文档");
-    const summary = $("#scanSummary");
-    const list = $("#scanList");
-    summary.className = "msg loading";
-    summary.innerHTML = '<span class="spin"></span>扫描中…';
-    list.innerHTML = "";
-    try {
-      const res = await api("/api/scan", { token: state.token });
-      scanData = res.items || [];
-      const stable = scanData.filter((x) => x.score >= 70).length;
-      summary.className = "msg ok";
-      summary.textContent = `找到 ${res.count} 个可交互元素，其中 ${stable} 个可用稳定定位器`;
-      renderScanList(scanData);
-    } catch (e) {
-      summary.className = "msg err";
-      summary.textContent = "请求失败：" + e.message;
-    }
-  });
-
-  function renderScanList(items) {
-    const list = $("#scanList");
-    list.innerHTML = "";
-    items.forEach((it) => {
-      const item = el("div", "scan-item");
-      item.appendChild(scoreBar(it.score));
-      const body = el("div", "scan-body");
-      body.appendChild(el("div", "scan-xpath", it.xpath));
-      const meta = [it.tag, it.text].filter(Boolean).join(" · ");
-      body.appendChild(el("div", "scan-meta", meta));
-      item.appendChild(body);
-      item.appendChild(scoreEl(it.score, it.level));
-      item.addEventListener("click", () => {
-        $("#xpathInput").value = it.xpath;
-        pushHistory(it.xpath);
-        if (it.idx != null) selectNode(it.idx);
-      });
-      item.addEventListener("dblclick", () => {
-        navigator.clipboard.writeText(it.xpath).then(() => toast("已复制"), () => toast("复制失败"));
-      });
-      list.appendChild(item);
-    });
-  }
-
-  $("#btnScanExport").addEventListener("click", () => {
-    if (!scanData || !scanData.length) return toast("请先扫描");
-    const lines = scanData.map((it) => `${it.xpath}\t# ${it.tag}${it.text ? " " + it.text : ""} [${it.score} ${it.level}]`);
-    const text = lines.join("\n");
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "xpath-scan.txt";
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast("已导出 xpath-scan.txt");
-  });
-
-  /* ---------------------- 示例 ---------------------- */
-  const SAMPLE = `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <title>示例商城</title>
-</head>
-<body>
-  <header class="site-header">
-    <a class="logo" href="/">MyShop</a>
-    <nav class="main-nav">
-      <ul>
-        <li><a href="/phones" data-category="phones">手机</a></li>
-        <li><a href="/laptops" data-category="laptops">笔记本</a></li>
-        <li><a href="/audio" data-category="audio">耳机</a></li>
-      </ul>
-    </nav>
-    <div class="header-actions">
-      <button id="search-btn" class="icon-btn" aria-label="搜索">搜索</button>
-      <a href="/cart" class="cart-link">
-        购物车 <span class="cart-badge" data-count="3">3</span>
-      </a>
-      <button id="login-btn" class="btn btn-primary" type="button">登录</button>
-    </div>
-  </header>
-
-  <main class="content">
-    <section class="hero">
-      <h1>秋季新品上市</h1>
-      <p>全场满 300 减 50</p>
-      <a href="/promo" class="btn btn-lg">立即选购</a>
-    </section>
-
-    <section class="product-list">
-      <article class="product-card" data-sku="A1001">
-        <h3 class="product-title">无线降噪耳机 Pro</h3>
-        <p class="price">¥ 899.00</p>
-        <button class="add-to-cart" data-sku="A1001">加入购物车</button>
-      </article>
-      <article class="product-card" data-sku="A1002">
-        <h3 class="product-title">智能手表 S8</h3>
-        <p class="price">¥ 1,299.00</p>
-        <button class="add-to-cart" data-sku="A1002">加入购物车</button>
-      </article>
-      <article class="product-card" data-sku="A1003">
-        <h3 class="product-title">便携蓝牙音箱</h3>
-        <p class="price">¥ 299.00</p>
-        <button class="add-to-cart" data-sku="A1003">加入购物车</button>
-      </article>
-    </section>
-
-    <form id="login-form" class="login-box" action="/login" method="post">
-      <h2>账号登录</h2>
-      <label for="username">用户名</label>
-      <input id="username" name="username" type="text" placeholder="请输入用户名" required>
-      <label for="password">密码</label>
-      <input id="password" name="password" type="password" placeholder="请输入密码" required>
-      <button type="submit" class="btn btn-primary">登 录</button>
-    </form>
-  </main>
-
-  <footer class="site-footer">
-    <p>© 2026 MyShop. All rights reserved.</p>
-  </footer>
-</body>
-</html>`;
-
-  $("#btnSample").addEventListener("click", () => {
-    $("#htmlInput").value = SAMPLE;
-    $$("#sourceTabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "paste"));
-    $$(".pane").forEach((p) => p.classList.toggle("active", p.dataset.pane === "paste"));
-    parseDoc();
-  });
-
-  /* ---------------------- 浏览器扩展实时桥接 ---------------------- */
   const bridge = { ws: null, retry: 0, timer: null, connected: false, ext: false };
   let lastPick = null;
 
@@ -988,7 +342,6 @@
     const btn = $("#btnGrab");
     $("#grabMsg").className = "msg loading";
     $("#grabMsg").innerHTML = '<span class="spin"></span>正在通知浏览器扩展…';
-    switchResultTab("grab");
     try {
       const res = await api("/api/bridge/pick", {});
       if (!res.ok) {
@@ -1011,12 +364,17 @@
 
   function renderPick(p) {
     lastPick = p;
+    validationId++;
+    resetMatches();
+    $("#validateMsg").textContent = "点击校验，在来源网页中高亮匹配元素";
+    $("#validateMsg").className = "msg";
+    $("#targetContext").textContent = (p.title || p.url || "已抓取元素") +
+      (p.frame && !p.frame.isTop ? " · iframe" : " · 当前网页");
     $("#btnGrab").classList.remove("armed");
-    switchResultTab("grab");
     const msg = $("#grabMsg");
     msg.className = "msg ok";
     msg.innerHTML = "✓ 已从浏览器抓取到元素" +
-      (p.matchCount >= 0 ? `（该 XPath 在实时页面上匹配 ${p.matchCount} 个节点）` : "");
+      (p.matchCount >= 0 ? `（抓取时匹配 ${p.matchCount} 个节点）` : "");
 
     const body = $("#grabBody");
     body.innerHTML = "";
@@ -1068,7 +426,7 @@
         item.addEventListener("click", () => {
           $("#xpathInput").value = c.xpath;
           pushHistory(c.xpath);
-          navigator.clipboard.writeText(c.xpath).then(() => toast("已复制"), () => { /* 忽略 */ });
+          validate(c.xpath, true);
         });
         list.appendChild(item);
       });
@@ -1111,40 +469,10 @@
       body.appendChild(list);
     }
 
-    // 操作
-    const actions = el("div", "block-actions");
-    if (p.pageHtml) {
-      const b = el("button", "btn ghost sm", inFrame ? "载入该框架 HTML 到编辑器" : "载入该页面到编辑器");
-      b.addEventListener("click", async () => {
-        $("#htmlInput").value = p.pageHtml;
-        $$("#sourceTabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "paste"));
-        $$(".pane").forEach((pp) => pp.classList.toggle("active", pp.dataset.pane === "paste"));
-        await parseDoc();
-        if (p.xpath) { $("#xpathInput").value = p.xpath; await validate(p.xpath, true); }
-        toast("已载入页面并校验");
-      });
-      actions.appendChild(b);
-    }
-    if (p.xpath) {
-      const b2 = el("button", "btn ghost sm", "复制 XPath");
-      b2.addEventListener("click", () =>
-        navigator.clipboard.writeText(p.xpath).then(() => toast("已复制 XPath"), () => { /* 忽略 */ }));
-      actions.appendChild(b2);
-    }
-    if (actions.childNodes.length) body.appendChild(actions);
-
-    // 元素 HTML
-    if (p.html) {
-      body.appendChild(el("div", "sub-head", "元素 HTML"));
-      body.appendChild(el("div", "grab-html", p.html));
-    }
-
     if (p.xpath) { $("#xpathInput").value = p.xpath; pushHistory(p.xpath); }
   }
-
   $("#btnGrab").addEventListener("click", startGrab);
   $("#btnGrabInline").addEventListener("click", startGrab);
-
   /* ---------------------- 浏览器扩展一键安装 ---------------------- */
   const extInstall = { browsers: [], recommendKey: "", extDir: "", selKey: "", busy: false, lastResult: null };
 
@@ -1527,35 +855,6 @@
   $("#btnCopyExtDir").addEventListener("click", () =>
     copyText($("#installPath").value, "已复制扩展目录"));
 
-  /* ---------------------- 快捷键 ---------------------- */
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); parseDoc(); }
-    if (e.key === "Escape") {
-      $("#settingsModal").hidden = true;
-      $("#installModal").hidden = true;
-    }
-  });
-
-  // 启动时载入示例；首次使用自动解析一次，方便直接看到效果
-  window.addEventListener("load", () => {
-    $("#htmlInput").value = SAMPLE;
-    renderHistory();
-    // 展示真实的桥接地址（浏览器扩展用它连接本机服务）
-    const bridgeEl = $("#bridgeUrl");
-    if (bridgeEl) bridgeEl.textContent = location.origin;
-    syncServerConfig();
-    connectBridge();
-    if (!localStorage.getItem("xpath-studio-seen")) {
-      localStorage.setItem("xpath-studio-seen", "1");
-      parseDoc().then(() => {
-        // 首次自动选中一个代表性节点，展示候选定位器
-        const target = findFirst(state.tree, (n) => n.attrs && n.attrs.id === "login-btn");
-        if (target) selectNode(target.idx);
-      });
-    }
-  });
-
-  // 本地没有配置时，从本机服务端配置补齐（浏览器扩展保存过的）
   async function syncServerConfig() {
     try {
       const r = await fetch("/api/config");
@@ -1571,12 +870,20 @@
     } catch { /* 忽略 */ }
   }
 
-  function findFirst(node, pred) {
-    if (pred(node)) return node;
-    for (const c of node.children || []) {
-      const r = findFirst(c, pred);
-      if (r) return r;
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      $("#settingsModal").hidden = true;
+      $("#installModal").hidden = true;
     }
-    return null;
-  }
+  });
+  window.addEventListener("load", () => {
+    renderHistory();
+    $("#bridgeUrl").textContent = location.origin;
+    syncServerConfig();
+    connectBridge();
+    fetch("/api/bridge/last").then(r => r.json()).then(r => {
+      if (!lastPick && r.payload) renderPick(r.payload);
+    }).catch(() => {});
+  });
 })();

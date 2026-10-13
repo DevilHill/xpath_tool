@@ -19,7 +19,7 @@
       </div>
       <div class="brand-text">
         <span class="brand-name">XPath Studio</span>
-        <span class="brand-sub">AI 元素定位编辑器</span>
+        <span class="brand-sub">浏览器元素定位工作台</span>
       </div>
     </div>
 
@@ -35,10 +35,6 @@
         </svg>
         抓取元素
       </button>
-      <button class="btn ghost" id="btnSample" title="载入示例 HTML">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        示例
-      </button>
       <button class="btn ghost" id="btnTheme" title="切换主题">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
         <span id="themeLabel">深色</span>
@@ -52,217 +48,41 @@
 
   <!-- ================= 主工作区 ================= -->
   <main class="workspace">
-
-    <!-- 左：数据源 -->
-    <section class="panel panel-source">
-      <div class="panel-head">
-        <h2><span class="dot"></span>数据源</h2>
-        <span class="stat-badge" id="docStat">未解析</span>
-      </div>
-
-      <div class="tabs" id="sourceTabs">
-        <button class="tab active" data-tab="paste">粘贴 HTML</button>
-        <button class="tab" data-tab="url">网址抓取</button>
-        <button class="tab" data-tab="file">上传文件</button>
-      </div>
-
-      <div class="tab-panes">
-        <div class="pane active" data-pane="paste">
-          <textarea id="htmlInput" spellcheck="false" placeholder="在此粘贴 HTML / XML 源码…&#10;&#10;例如：&#10;<div class=&quot;login-box&quot;>&#10;  <button id=&quot;submit&quot;>登录</button>&#10;</div>"></textarea>
-        </div>
-        <div class="pane" data-pane="url">
-          <div class="row">
-            <input id="urlInput" placeholder="https://example.com" />
-          </div>
-          <button class="btn block" id="btnFetch">抓取页面源码</button>
-          <p class="hint">通过本机网络请求该地址并解析返回的 HTML。部分站点有反爬或需要登录，可能抓取失败。</p>
-        </div>
-        <div class="pane" data-pane="file">
-          <label class="dropzone" id="dropzone">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>
-            <span>点击选择文件，或将文件拖到此处</span>
-            <small>支持 .html / .htm / .xml / .txt</small>
-          </label>
-          <input type="file" id="fileInput" accept=".html,.htm,.xml,.txt" hidden />
-        </div>
-      </div>
-
-      <div class="panel-foot">
-        <button class="btn primary block" id="btnParse">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          解析文档
-        </button>
-      </div>
-    </section>
-
-    <!-- 中：DOM 树 -->
-    <section class="panel panel-dom">
-      <div class="panel-head">
-        <h2><span class="dot"></span>DOM 结构</h2>
-        <div class="head-tools">
-          <input id="domFilter" class="mini-input" placeholder="过滤标签 / 属性…" />
-          <button class="btn ghost sm" id="btnExpandAll">展开</button>
-          <button class="btn ghost sm" id="btnCollapseAll">折叠</button>
-        </div>
-      </div>
-      <div class="dom-tree" id="domTree">
-        <div class="empty-state">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h4"/></svg>
-          <p>解析文档后，这里会显示 DOM 树</p>
-          <small>点击任意节点即可自动生成 XPath</small>
-        </div>
-      </div>
-      <div class="panel-foot dom-foot">
-        <span id="treeStat" class="muted"></span>
-        <span class="legend"><i class="lg-hit"></i>匹配 <i class="lg-sel"></i>选中</span>
-      </div>
-    </section>
-
-    <!-- 右：XPath 工作台 -->
     <section class="panel panel-xpath">
       <div class="panel-head">
         <h2><span class="dot"></span>XPath 工作台</h2>
         <div class="head-tools">
-          <button class="btn ghost sm" id="btnCopy" title="复制表达式">复制</button>
-          <button class="btn ghost sm" id="btnClear" title="清空">清空</button>
+          <button class="btn ghost sm" id="btnCopy">复制</button>
+          <button class="btn ghost sm" id="btnClear">清空</button>
         </div>
       </div>
-
-      <!-- 常驻：表达式编辑 -->
       <div class="expr-bar">
         <div class="input-row">
-          <input id="xpathInput" class="mono" placeholder="//div[@class='login-box']//button" spellcheck="false" />
+          <input id="xpathInput" class="mono" aria-label="XPath 表达式" placeholder="抓取元素后编辑 XPath，点击校验同步高亮" spellcheck="false" />
           <button class="btn primary" id="btnValidate">校验</button>
         </div>
-        <div id="validateMsg" class="msg"></div>
+        <div id="validateMsg" class="msg" role="status" aria-live="polite"></div>
         <div id="historyRow" class="history-row"></div>
       </div>
-
-      <!-- 结果区标签页 -->
-      <div class="tabs result-tabs" id="resultTabs">
-        <button class="tab" data-rtab="grab">浏览器抓取 <span class="live-dot" id="grabDot"></span></button>
-        <button class="tab active" data-rtab="cand">候选定位</button>
-        <button class="tab" data-rtab="ai">AI 生成</button>
-        <button class="tab" data-rtab="verify">批量验证</button>
-        <button class="tab" data-rtab="scan">页面扫描</button>
-      </div>
-
-      <div class="xpath-body">
-
-        <!-- ===== 浏览器抓取 ===== -->
-        <div class="r-pane" data-rpane="grab">
-          <div class="block">
-            <div class="block-head">
-              <label>浏览器抓取 <span class="tag-live">实时</span></label>
-              <div class="block-actions">
-                <button class="btn ghost sm" id="btnGrabInline">开始抓取</button>
-              </div>
-            </div>
-            <p class="hint">
-              点「抓取元素」后切到浏览器：鼠标移到目标上会<strong>实时高亮</strong>，
-              <kbd>↑ / ↓</kbd> 切换父子层级，<kbd>Ctrl</kbd>＋左键锁定预览，确认后回传。支持有访问权限的 iframe，框架内定位器会标明作用域。
-              按 <kbd>Esc</kbd> 取消。
-            </p>
-            <div id="grabInstall" class="install-callout" hidden>
-              <div class="install-callout-text">
-                <b>还没有装浏览器扩展？</b>
-                <span>桌面版会自动识别本机的 Chrome / Edge / Brave，帮你一键装好。</span>
-              </div>
-              <button class="btn primary sm" id="btnInstallExtInline" type="button">一键安装扩展</button>
-            </div>
-            <div id="grabMsg" class="msg"></div>
-            <div id="grabBody"></div>
+      <div class="target-context" id="targetContext">先抓取浏览器中的元素，再校验 XPath</div>
+      <div class="workbench-results">
+        <section class="workbench-section">
+          <div class="block-head">
+            <h3>抓取元素 <span class="live-dot" id="grabDot"></span></h3>
+            <button class="btn ghost sm" id="btnGrabInline">开始抓取</button>
           </div>
-        </div>
-
-        <!-- ===== 候选定位 ===== -->
-        <div class="r-pane active" data-rpane="cand">
-          <div class="block" id="genBlock" hidden>
-            <div class="block-head">
-              <label>候选定位器 <span class="pill" id="genTarget"></span></label>
-            </div>
-            <div id="genList" class="cand-list"></div>
-
-            <div class="sub-block" id="cssBlock" hidden>
-              <div class="sub-head">CSS 选择器</div>
-              <div id="cssList" class="cand-list"></div>
-            </div>
-            <div class="sub-block" id="pwBlock" hidden>
-              <div class="sub-head">Playwright 定位器</div>
-              <div id="pwList" class="cand-list"></div>
-            </div>
+          <p class="hint">在网页中悬停，↑ / ↓ 切换层级，Ctrl＋左键锁定，Enter 确认。</p>
+          <div id="grabInstall" class="install-callout" hidden>
+            <div class="install-callout-text"><b>连接浏览器扩展</b><span>安装扩展后即可抓取与同步高亮。</span></div>
+            <button class="btn primary sm" id="btnInstallExtInline" type="button">安装扩展</button>
           </div>
-
-          <div class="block">
-            <div class="block-head">
-              <label>自然语言检索 <span class="tag-offline">离线</span></label>
-            </div>
-            <div class="input-row">
-              <input id="nlInput" placeholder="如：页面里的登录按钮" />
-              <button class="btn" id="btnNL">检索</button>
-            </div>
-            <div id="nlList" class="cand-list"></div>
-          </div>
-
-          <div class="block">
-            <div class="block-head">
-              <label>匹配结果 <span class="pill" id="matchCount">—</span></label>
-            </div>
-            <div id="matchList" class="match-list">
-              <p class="muted small">执行校验后显示匹配到的节点。</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- ===== AI 生成 ===== -->
-        <div class="r-pane" data-rpane="ai">
-          <div class="block ai-block">
-            <div class="block-head">
-              <label>AI 智能生成 <span class="tag-ai">大模型</span></label>
-            </div>
-            <p class="hint">用一句话描述目标元素，由大模型分析页面结构后给出稳健 XPath，并自动用本地引擎校验。</p>
-            <div class="input-row">
-              <input id="aiInput" placeholder="如：右上角带有红色角标的购物车图标" />
-              <button class="btn ai" id="btnAI">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
-                生成
-              </button>
-            </div>
-            <div id="aiMsg" class="msg"></div>
-            <div id="aiList" class="cand-list"></div>
-          </div>
-        </div>
-
-        <!-- ===== 批量验证 ===== -->
-        <div class="r-pane" data-rpane="verify">
-          <div class="block">
-            <div class="block-head">
-              <label>批量验证 <span class="tag-offline">XPath / CSS</span></label>
-            </div>
-            <p class="hint">每行一个定位器，一次性校验是否有效、匹配多少个节点，快速发现失效的旧选择器。</p>
-            <textarea id="verifyInput" class="mono" spellcheck="false" placeholder="//button[@id='login-btn']&#10;.add-to-cart&#10;#submit-form&#10;//input[@name='username']"></textarea>
-            <button class="btn primary block" id="btnVerify">全部验证</button>
-            <div id="verifySummary" class="msg"></div>
-            <div id="verifyList" class="match-list"></div>
-          </div>
-        </div>
-
-        <!-- ===== 页面扫描 ===== -->
-        <div class="r-pane" data-rpane="scan">
-          <div class="block">
-            <div class="block-head">
-              <label>页面扫描 <span class="tag-offline">离线</span></label>
-              <div class="block-actions">
-                <button class="btn ghost sm" id="btnScanExport">导出</button>
-              </div>
-            </div>
-            <p class="hint">自动找出页面中所有可交互元素（按钮 / 链接 / 输入框 / 表单控件等），为每个元素给出最稳健的定位器，适合快速搭建页面对象。</p>
-            <button class="btn primary block" id="btnScan">开始扫描</button>
-            <div id="scanSummary" class="msg"></div>
-            <div id="scanList" class="scan-list"></div>
-          </div>
-        </div>
-
+          <div id="grabMsg" class="msg" role="status"></div>
+          <div id="grabBody"><div class="empty-state"><p>等待抓取元素</p><small>确认后，这里显示候选定位器。</small></div></div>
+        </section>
+        <section class="workbench-section matches-section">
+          <div class="block-head"><h3>匹配结果 <span class="pill" id="matchCount">—</span></h3></div>
+          <div id="matchList" class="match-list"><p class="muted small">校验后，浏览器匹配元素会同步高亮。</p></div>
+        </section>
       </div>
     </section>
   </main>
@@ -278,7 +98,7 @@
       </button>
     </div>
     <div class="modal-body">
-      <p class="hint">兼容 OpenAI 协议的任意服务（OpenAI / DeepSeek / 通义千问 / Moonshot / 本地 Ollama 等）。配置仅保存在本机浏览器，不会上传。</p>
+      <p class="hint">兼容 OpenAI 协议的任意服务（OpenAI / DeepSeek / 通义千问 / Moonshot / 本地 Ollama 等）。配置保存在本机；调用 AI 时将提交的网页内容发送至配置的模型接口。</p>
       <div class="bridge-note">
         <b>浏览器扩展联动</b>：保存后会同时写入本地配置文件，浏览器扩展的「AI」标签页会通过
         <code id="bridgeUrl">http://127.0.0.1:8790</code> 复用这里的设置。请保持桌面版处于运行状态。

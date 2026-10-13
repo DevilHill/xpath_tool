@@ -2,13 +2,13 @@
 
 # XPath Studio
 
-网页元素定位工具：在桌面端分析 HTML/XML，或通过 Chrome / Edge 扩展拾取元素，生成并验证 **XPath、CSS、Playwright** 定位器。
+浏览器元素定位工具：抓取 Chrome / Edge 网页元素，生成 **XPath、CSS、Playwright** 定位器；在 XPath 工作台点击校验，浏览器匹配元素同步高亮。
 
-- DOM 树、高亮匹配、批量验证与页面扫描。
-- 稳定祖先锚定、动态属性识别、定位器评分和自愈建议。
-- 支持离线检索，可选接入 OpenAI 兼容 AI 服务。
+- 抓取元素、编辑 XPath、实时匹配与高亮。
+- 稳定祖先锚定、动态属性识别、定位器评分。
+- 绑定抓取来源的浏览器、标签页及 iframe，按实际 DOM 校验。
 
-[界面截图](docs/images/install-current-chrome.png) · [扩展说明](extension/README.md)
+[工作台截图](docs/images/workbench-live.png) · [扩展说明](extension/README.md)
 
 ## 获取代码
 
@@ -17,7 +17,6 @@ git clone https://github.com/DevilHill/xpath_tool.git
 cd xpath_tool
 ```
 
-私有仓库，克隆需要访问权限。
 
 ## 环境
 
@@ -30,11 +29,10 @@ cd xpath_tool
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install cssselect
 .\.venv\Scripts\python.exe run.py --browser
 ```
 
-默认访问 `http://127.0.0.1:8790/`，端口被占用时自动选择其他端口，以终端输出为准。粘贴 HTML 并解析，点击 DOM 节点查看定位器。`Ctrl+C` 停止服务；修改 Python 代码后需重启。
+默认访问 `http://127.0.0.1:8790/`，端口被占用时自动选择其他端口，以终端输出为准。抓取元素后修改 XPath 并点击“校验”，浏览器对应元素会高亮。`Ctrl+C` 停止服务；修改 Python 代码后需重启。
 
 使用 `run.py` 打开原生窗口，`run.py --serve` 仅启动服务，`--port 8798` 指定首选端口。
 
@@ -43,6 +41,7 @@ python -m venv .venv
 1. 在桌面端点击连接状态 → **安装到现有浏览器**。
 2. 在打开的扩展页开启开发者模式，选择“加载已解压的扩展程序”，粘贴已复制的目录。
 3. 刷新目标网页，点击桌面端“抓取元素”；`Ctrl+左键` 锁定，`Enter` 确认，`Esc` 取消。
+4. 在工作台点击“校验”同步高亮；“清空”会清除浏览器高亮。页面刷新或扩展重启后需重新抓取。
 
 也可在 `chrome://extensions/` 或 `edge://extensions/` 手动加载 `extension/`。独立使用时，`Alt+Shift+X` 打开面板。
 
@@ -60,6 +59,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe tools/pack_extension.py
 .\.venv\Scripts\python.exe -X utf8 tools/smoke_test.py
 .\.venv\Scripts\python.exe -X utf8 tools/test_extension_static.py
+.\.venv\Scripts\python.exe -X utf8 tools/test_browser_validation.py
 ```
 
 产物：`dist/XPathStudio.exe`、`dist/xpath-studio-extension.zip`。修改界面或扩展后需重新打包；运行 `tools/verify_exe.py` 可检查 EXE 内嵌资源。产物不提交到 Git，未配置自动发布。
@@ -71,7 +71,7 @@ npm install --no-save --package-lock=false jsdom
 node tools/test_install_ui.js
 ```
 
-更多测试见 [tools/](tools/)。双引擎回归脚本 `test_engine_parity.py`、`test_ancestor_anchor.py` 含开发机 Node 路径，其他机器运行前需调整。
+更多测试见 [tools/](tools/)。`test_live_validation.py` 使用独立 Chrome 实例验证真实抓取与同步高亮；双引擎回归脚本含开发机 Node 路径，其他机器运行前需调整。
 
 ## 贡献与许可
 

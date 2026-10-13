@@ -522,11 +522,6 @@
       title: document.title,
       // 实时页面上的匹配数（以浏览器 DOM 为准，权威）
       matchCount: live && live.valid ? live.count : -1,
-      // 整页 HTML，便于桌面版把该页面载入编辑器做完整分析（限长）
-      pageHtml: (function () {
-        var h = document.documentElement ? document.documentElement.outerHTML : "";
-        return h.length > 200000 ? h.slice(0, 200000) + "\n<!-- 内容过长已截断 -->" : h;
-      })(),
       rect: {
         x: Math.round(rect.left), y: Math.round(rect.top),
         w: Math.round(rect.width), h: Math.round(rect.height)
@@ -575,7 +570,7 @@
         Panel.renderMatches([], null);
       }
       clearHighlight();
-      return;
+      return v;
     }
     var n = v.count;
     if (panelReady()) {
@@ -593,6 +588,7 @@
     var prim = primary || selectedEl;
     if (nodes.indexOf(prim) === -1) prim = nodes[0] || null;
     setHighlight(nodes, prim);
+    return v;
   }
 
   function focusNode(node) {
@@ -694,6 +690,27 @@
    * ------------------------------------------------------------------ */
   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || !msg.type) return;
+    if (msg.type === "browser-validate") {
+      if (msg.action === "clear") {
+        clearHighlight();
+        sendResponse({ ok: true, cleared: true });
+        return true;
+      }
+      var result = validateXPath(msg.xpath, null);
+      var nodes = (result.matches || []).filter(function (m) { return m.kind === "node"; });
+      if (nodes.length) focusNode(nodes[0].node);
+      sendResponse({ ok: true, valid: result.valid, error: result.error || "",
+        count: result.count, truncated: !!result.truncated, highlighted: nodes.length,
+        matches: (result.matches || []).map(function (m) {
+          if (m.kind !== "node") return { kind: "value", value: String(m.value).slice(0, 512) };
+          var attrs = {};
+          Object.keys(m.attrs || {}).slice(0, 20).forEach(function (key) {
+            attrs[key] = String(m.attrs[key]).slice(0, 256);
+          });
+          return { kind: "node", tag: m.tag, attrs: attrs, text: m.text };
+        }) });
+      return true;
+    }
 
     if (msg.type === "ping") {
       sendResponse({ ok: true, hasPanel: panelMounted, picking: picking });

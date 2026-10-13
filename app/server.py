@@ -261,6 +261,7 @@ class Handler(BaseHTTPRequestHandler):
                 "/api/bridge/pick": self.api_bridge_pick,
                 "/api/bridge/stop": self.api_bridge_stop,
                 "/api/bridge/result": self.api_bridge_result,
+                "/api/bridge/validate": self.api_bridge_validate,
                 "/api/extension/install": self.api_extension_install,
                 "/api/extension/open-folder": self.api_extension_open_folder,
                 "/api/extension/policy-status": self.api_extension_policy_status,
@@ -400,6 +401,11 @@ class Handler(BaseHTTPRequestHandler):
         ws_bridge.HUB.set_pick(payload)
         ws_bridge.HUB.broadcast({"type": "picked", "payload": payload})
         self._send_json({"ok": True}, 200)
+
+    def api_bridge_validate(self, body):
+        result = ws_bridge.HUB.request_browser(body.get("target"), body.get("action", "validate"),
+                                              body.get("xpath", ""))
+        self._send_json(result)
 
     # ---- 浏览器扩展一键安装 ----
     def _server_port(self) -> int:

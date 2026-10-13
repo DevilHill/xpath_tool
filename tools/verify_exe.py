@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import base64
+import argparse
 import hashlib
 import io
 import json
@@ -104,6 +105,10 @@ def call(path: str, payload: dict | None = None, method: str | None = None):
 
 
 def main() -> int:
+    global EXE
+    parser = argparse.ArgumentParser(description="验证 XPath Studio 打包资源和本地服务")
+    parser.add_argument("--exe", default=EXE, help="要验证的 EXE，默认 dist/XPathStudio.exe")
+    EXE = str(Path(parser.parse_args().exe).resolve())
     if not os.path.exists(EXE):
         print(f"找不到 {EXE}，请先执行 python build.py")
         return 1

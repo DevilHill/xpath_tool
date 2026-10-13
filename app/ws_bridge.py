@@ -185,6 +185,7 @@ class Hub:
         self._clients: list[WSClient] = []
         self.last_pick: dict[str, Any] | None = None
         self.last_pick_at: float = 0.0
+        self._requests: dict[str, tuple[WSClient, threading.Event, dict]] = {}
 
     # ---- 登记 ----
     def add(self, client: WSClient) -> None:
@@ -195,6 +196,10 @@ class Hub:
         with self._lock:
             if client in self._clients:
                 self._clients.remove(client)
+            for owner, event, result in self._requests.values():
+                if owner is client and not event.is_set():
+                    result.update(ok=False, error="目标浏览器连接已断开，请重新抓取")
+                    event.set()
 
     def clients(self) -> list[WSClient]:
         with self._lock:
@@ -229,6 +234,48 @@ class Hub:
         self.last_pick = payload
         self.last_pick_at = time.time()
 
+    def request_browser(self, target: dict, action: str, xpath: str = "",
+                        timeout: float = 8.0) -> dict:
+        """只向抓取来源发起实时校验，等待该连接的确认结果。"""
+        if not isinstance(target, dict) or not target.get("browserId") or not target.get("documentId"):
+            return {"ok": False, "error": "请更新扩展并重新抓取元素，再校验 XPath"}
+        if (type(target.get("tabId")) is not int or type(target.get("frameId")) is not int
+                or target["tabId"] < 0 or target["frameId"] < 0):
+            return {"ok": False, "error": "抓取来源不完整，请重新抓取"}
+        if action not in ("validate", "clear") or not isinstance(xpath, str) or len(xpath) > 16384:
+            return {"ok": False, "error": "校验请求无效"}
+        request_id = os.urandom(16).hex()
+        event, result = threading.Event(), {}
+        with self._lock:
+            owners = [c for c in self._clients if c.role == "extension"
+                      and c.info.get("browserId") == target["browserId"]]
+            if len(owners) != 1:
+                return {"ok": False, "error": "抓取来源的浏览器未连接，请重新连接并抓取"}
+            if len(self._requests) >= 128:
+                return {"ok": False, "error": "校验请求过多，请稍后重试"}
+            owner = owners[0]
+            self._requests[request_id] = (owner, event, result)
+        try:
+            sent = owner.send_json({"type": "browser-command", "requestId": request_id,
+                                    "target": target, "action": action, "xpath": xpath})
+            if not sent:
+                return {"ok": False, "error": "无法通知目标浏览器，请重新抓取"}
+            if not event.wait(timeout):
+                return {"ok": False, "error": "浏览器校验超时，请检查目标网页后重试"}
+            return dict(result)
+        finally:
+            with self._lock:
+                self._requests.pop(request_id, None)
+
+    def browser_reply(self, client: WSClient, msg: dict) -> None:
+        with self._lock:
+            pending = self._requests.get(msg.get("requestId"))
+            if pending and pending[0] is client and isinstance(msg.get("result"), dict):
+                _, event, result = pending
+                if not event.is_set():
+                    result.update(msg["result"])
+                    event.set()
+
 
 HUB = Hub()
 
@@ -252,8 +299,15 @@ def handle_message(client: WSClient, msg: dict[str, Any]) -> None:
     if kind == "picked":
         payload = msg.get("payload") or {}
         if isinstance(payload, dict):
+            if client.role == "extension":
+                payload["browserId"] = client.info.get("browserId", "")
             HUB.set_pick(payload)
             HUB.broadcast({"type": "picked", "payload": payload}, exclude=client)
+        return
+
+    if kind == "browser-result":
+        if client.role == "extension":
+            HUB.browser_reply(client, msg)
         return
 
     if kind == "status":

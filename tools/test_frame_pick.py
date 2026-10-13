@@ -150,7 +150,8 @@ def main():
         check("XPath在框架内唯一", payload["xpath"] == "//button[@id='inside']" and payload["matchCount"] == 1)
         check("来源信息区分顶层与跨域框架", payload["frame"]["frameId"] > 0 and
               "localhost" in payload["frame"]["url"] and "127.0.0.1" in payload["frame"]["topUrl"])
-        check("HTML快照对应框架", "inside" in payload["pageHtml"] and "<iframe" not in payload["pageHtml"])
+        check("回传包含实时文档身份且不含整页快照", bool(payload["frame"]["documentId"]) and
+              bool(payload["browserId"]) and "pageHtml" not in payload)
         cancel = evaluate(sid, """(async()=>{
           await startPickSession(testTab);
           await runFrame(()=>document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})));

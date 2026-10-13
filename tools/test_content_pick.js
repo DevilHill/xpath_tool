@@ -146,7 +146,7 @@ const overlay = () => dom.window.document.getElementById(OVERLAY_ID);
   check("含页面 URL", p.url === "https://shop.example.com/login", p.url);
   check("含页面标题", typeof p.title === "string");
   check("含实时匹配数", p.matchCount === 1, String(p.matchCount));
-  check("含整页 HTML（供桌面版载入）", /add-to-cart/.test(p.pageHtml || ""), (p.pageHtml || "").slice(0, 60));
+  check("不再传输整页 HTML 快照", !("pageHtml" in p));
   check("bridge 字段已带上", !!picked && typeof picked.bridge === "string", picked && picked.bridge);
 
   console.log("\n[4b] 层级、重选与失效元素");
@@ -201,6 +201,20 @@ const overlay = () => dom.window.document.getElementById(OVERLAY_ID);
   check("面板按钮可进入拾取", !!r4 && r4.picking === true);
   fire({ type: "toggle-picker" });
   await tick();
+
+  console.log("\n[7] 桌面实时 XPath 校验与高亮清理");
+  const live = fire({ type: "browser-validate", action: "validate", xpath: "//button" });
+  check("校验实际 DOM 的多节点", live && live.ok && live.count === 2 && live.highlighted === 2);
+  check("返回可序列化摘要而非 DOM 对象", live && JSON.stringify(live) && !live.matches[0].node);
+  const zero = fire({ type: "browser-validate", action: "validate", xpath: "//does-not-exist" });
+  check("零匹配校验成功", zero && zero.valid && zero.count === 0 && zero.highlighted === 0);
+  const invalid = fire({ type: "browser-validate", action: "validate", xpath: "//*[" });
+  check("非法表达式返回明确错误", invalid && !invalid.valid && !!invalid.error);
+  const value = fire({ type: "browser-validate", action: "validate", xpath: "count(//button)" });
+  check("数字 XPath 返回值且不高亮", value && value.matches[0].value === "2" && value.highlighted === 0);
+  const clear = fire({ type: "browser-validate", action: "clear" });
+  check("清空指令确认", clear && clear.ok && clear.cleared);
+  check("覆盖层未遗留高亮框", !ov.shadowRoot.querySelector(".ov-hl"));
 
   console.log("\n" + "=".repeat(62));
   if (fails.length) {

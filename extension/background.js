@@ -9,6 +9,9 @@
 "use strict";
 
 var DEFAULT_BRIDGE = "http://127.0.0.1:8790";
+// 每次后台启动分配独立身份，避免不同浏览器的 tabId / frameId 碰撞。
+var browserId = crypto.randomUUID();
+var lastTarget = null;
 
 function joinUrl(base, path) {
   var b = (base || DEFAULT_BRIDGE).trim().replace(/\/+$/, "");
@@ -256,7 +259,8 @@ function connectBridge(base) {
 
   ws.onopen = function () {
     wsRetry = 0;
-    wsSend({ type: "hello", role: "extension", version: chrome.runtime.getManifest().version });
+    wsSend({ type: "hello", role: "extension", browserId: browserId,
+      version: chrome.runtime.getManifest().version });
     setBadge("●", "#10b981");
     notifyTabs({ type: "bridge-state", state: bridgeState() });
   };
@@ -279,6 +283,15 @@ function connectBridge(base) {
 
 async function handleBridgeMessage(msg) {
   if (!msg || !msg.type) return;
+
+  if (msg.type === "browser-command") {
+    if (!msg.target || msg.target.browserId !== browserId) return;
+    var result;
+    try { result = await runBrowserCommand(msg); }
+    catch (e) { result = { ok: false, error: "目标页面已关闭或刷新，请重新抓取元素" }; }
+    wsSend({ type: "browser-result", requestId: msg.requestId, result: result });
+    return;
+  }
 
   if (msg.type === "start-pick") {
     var tab = await activeTab();
@@ -307,6 +320,26 @@ async function handleBridgeMessage(msg) {
     wsSend({ type: "pong" });
     return;
   }
+}
+
+async function runBrowserCommand(msg) {
+  var target = msg.target || {};
+  if (!lastTarget || target.tabId !== lastTarget.tabId || target.frameId !== lastTarget.frameId ||
+      !target.documentId || target.documentId !== lastTarget.documentId)
+    return { ok: false, error: "抓取目标已变更，请重新抓取元素" };
+  if (pickSession) return { ok: false, error: "请先确认或取消当前抓取，再校验 XPath" };
+  // 只投递到原始文档；刷新、导航后不注入新页面，也不回退到当前标签页。
+  return await chrome.tabs.sendMessage(target.tabId,
+    { type: "browser-validate", action: msg.action, xpath: msg.xpath },
+    { documentId: target.documentId });
+}
+
+async function clearPreviousHighlight() {
+  if (!lastTarget || !lastTarget.documentId) return;
+  try {
+    await chrome.tabs.sendMessage(lastTarget.tabId, { type: "browser-validate", action: "clear" },
+      { documentId: lastTarget.documentId });
+  } catch (e) { /* 原页面可能已关闭 */ }
 }
 
 /* 把消息推给所有标签页的内容脚本（用于同步桥接状态） */
@@ -399,8 +432,13 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
         documentId: sender.documentId || "", url: sender.url || payload.url,
         topUrl: (session && session.topUrl) || (sender.tab && sender.tab.url) || payload.url,
         isTop: !sender.frameId, xpathScope: sender.frameId ? "frame" : "page" };
+      payload.browserId = browserId;
       var result = await reportPicked(Object.assign({}, msg, { payload: payload }));
-      if (result.ok && session && pickSession === session) await stopPickSession();
+      if (result.ok) {
+        await clearPreviousHighlight();
+        lastTarget = payload.frame;
+        if (session && pickSession === session) await stopPickSession();
+      }
       return result;
     })().then(sendResponse).catch(function (e) { sendResponse({ ok: false, error: e.message }); });
     return true;
