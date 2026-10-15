@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
 .venv/
 venv/
 
@@ -30,6 +31,7 @@ shots/
 output/
 outputs/
 node_modules/
+vscode-extension/runtime/
 .pytest_cache/
 .ruff_cache/
 *.log

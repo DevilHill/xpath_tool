@@ -14,8 +14,9 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
-from . import ai_client, extension_installer, ws_bridge, xpath_engine
+from . import __version__, ai_client, extension_installer, ws_bridge, xpath_engine
 
 # --------------------------------------------------------------------------- #
 # 资源路径（兼容 PyInstaller 打包后的 _MEIPASS）
@@ -46,6 +47,12 @@ _MIME = {
 # 本地配置（供浏览器扩展桥接时复用 AI 设置）
 # --------------------------------------------------------------------------- #
 CONFIG_PATH = Path.home() / ".xpath_studio" / "config.json"
+ELEMENTS_PATH = Path(os.environ.get("WBOT_ELEMENT_LIBRARY", str(Path.home() / ".xpath_studio" / "elements.sqlite3")))
+
+
+def element_library():
+    from wbot.elements import ElementLibrary
+    return ElementLibrary(ELEMENTS_PATH)
 
 
 def load_config() -> dict[str, Any]:
@@ -118,7 +125,7 @@ def fetch_url(url: str, timeout: int = 20) -> str:
 # 请求处理
 # --------------------------------------------------------------------------- #
 class Handler(BaseHTTPRequestHandler):
-    server_version = "XPathStudio/1.0"
+    server_version = "XPathStudio/" + __version__
 
     def log_message(self, fmt, *args):  # 静音默认日志
         pass
@@ -217,11 +224,23 @@ class Handler(BaseHTTPRequestHandler):
     # ---- 路由 ----
     def do_GET(self):  # noqa: N802
         path = self.path.split("?", 1)[0]
+        if path in ("/api/elements", "/api/elements/export"):
+            try:
+                library = element_library()
+                if path.endswith("/export"):
+                    self._send_json({"ok": True, "data": library.export_data()})
+                else:
+                    query = parse_qs(urlsplit(self.path).query)
+                    self._send_json({"ok": True, "items": library.list(
+                        query.get("query", [""])[0], query.get("group", [""])[0])})
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 400)
+            return
         if path == "/ws":
             self._handle_ws()
             return
         if path == "/api/health":
-            self._send_json({"ok": True, "version": "1.0", "bridge": ws_bridge.HUB.stats()})
+            self._send_json({"ok": True, "version": __version__, "wbot": "0.1.0", "bridge": ws_bridge.HUB.stats()})
             return
         if path == "/api/bridge/last":
             self._send_json({"ok": True, "payload": ws_bridge.HUB.last_pick})
@@ -247,7 +266,31 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):  # noqa: N802
         path = self.path.split("?", 1)[0]
+        if path.startswith(("/api/elements/", "/api/wbot/")):
+            # Python本机调用没有Origin；浏览器写操作只接受本服务同源JSON请求。
+            origin = self.headers.get("Origin")
+            allowed = {f"http://127.0.0.1:{self.server.server_port}", f"http://localhost:{self.server.server_port}"}
+            if (origin and origin not in allowed) or self.headers.get("Sec-Fetch-Site") == "cross-site":
+                self._send_json({"ok": False, "error": "不接受跨站自动化或元素库写请求"}, 403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+            except ValueError:
+                length = -1
+            if not 0 < length <= 2 * 1024 * 1024 or self.headers.get_content_type() != "application/json":
+                self._send_json({"ok": False, "error": "请求必须是小于2MiB的JSON"}, 400)
+                return
         body = self._read_json()
+        if path.startswith(("/api/elements/", "/api/wbot/")):
+            try:
+                if not isinstance(body, dict):
+                    raise ValueError("请求必须是JSON对象")
+                self.api_wbot(path, body)
+            except (ValueError, TypeError, KeyError) as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 400)
+            except Exception as exc:
+                self._send_json({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, 500)
+            return
         try:
             handler = {
                 "/api/parse": self.api_parse,
@@ -277,6 +320,37 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": f"{type(exc).__name__}: {exc}"}, 500)
 
     # ---- 各接口实现 ----
+    def api_wbot(self, path, body):
+        if path == "/api/wbot/command":
+            action = body.get("action")
+            if action not in ("query", "click", "input", "text", "attribute", "visible",
+                              "enabled", "select", "check", "hover", "scroll"):
+                raise ValueError("不支持的wbot动作")
+            xpath = body.get("xpath")
+            options = body.get("options", {})
+            if not isinstance(xpath, str) or not xpath.strip() or len(xpath) > 16384:
+                raise ValueError("XPath不能为空或超过16384字符")
+            if not isinstance(options, dict) or len(json.dumps(options)) > 262144:
+                raise ValueError("动作参数格式错误或过大")
+            if type(options.get("index", 0)) is not int or options.get("index", 0) < 0:
+                raise ValueError("索引必须是非负整数")
+            if "strict" in options and type(options["strict"]) is not bool:
+                raise ValueError("strict必须是布尔值")
+            result = ws_bridge.HUB.request_browser(body.get("target"), action, xpath, options=options)
+            self._send_json(result)
+            return
+        library = element_library()
+        if path == "/api/elements/save":
+            self._send_json({"ok": True, "item": library.upsert(body.get("record"))})
+        elif path == "/api/elements/delete":
+            deleted = library.delete(body.get("id"))
+            self._send_json({"ok": True, "deleted": deleted})
+        elif path == "/api/elements/import":
+            self._send_json({"ok": True, "result": library.import_data(
+                body.get("data"), conflict=body.get("conflict", "error"))})
+        else:
+            self._send_json({"ok": False, "error": "未知接口"}, 404)
+
     def api_parse(self, body):
         html = body.get("html", "")
         root, index, tree, count, elements = xpath_engine.load(html)

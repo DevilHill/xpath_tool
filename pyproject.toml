@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wbot"
+version = "0.1.0"
+description = "XPath Studio 网页自动化、元素库与 Python 自动化工具"
+readme = "docs/wbot.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = ["lxml>=5.0"]
+
+[project.optional-dependencies]
+excel = ["openpyxl>=3.1"]
+web = ["playwright>=1.49"]
+all = ["openpyxl>=3.1", "playwright>=1.49"]
+
+[tool.setuptools.packages.find]
+include = ["wbot*"]
+exclude = ["app*", "tests*", "tools*"]

@@ -1,0 +1,5 @@
+{
+  "WBot 连接浏览器": {"prefix":"wbot-connect","body":["from wbot import web, selector","","browser = web.get(base_url=\"${1:http://127.0.0.1:8790}\")","elements = selector.SelectorStore()","$0"],"description":"连接当前已抓取页面与元素库"},
+  "WBot 命名元素": {"prefix":"wbot-element","body":["element = browser.find(elements.get(\"${1:元素名称}\", group=\"${2:默认}\"), timeout=10)","${3:print(element.get_text())}"],"description":"通过名称读取元素"},
+  "WBot 独立浏览器": {"prefix":"wbot-browser","body":["from wbot import web","","with web.create(\"${1:https://example.com}\", channel=\"msedge\", headless=False) as browser:","    print(browser.find(\"${2://h1}\").get_text())","$0"],"description":"需要 wbot[web] 与已安装的 Edge"}
+}

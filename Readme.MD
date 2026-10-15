@@ -10,6 +10,8 @@
 
 [工作台截图](docs/images/workbench-live.png) · [扩展说明](extension/README.md)
 
+也可以在 **VS Code** 中完成元素库管理、抓取和 Python 脚本运行：安装 `wbot-studio-0.1.0.vsix`，使用 WBot 侧栏。安装与配置见 [WBot Studio 使用指南](vscode-extension/README.md)。
+
 ## 获取代码
 
 ```powershell
@@ -80,3 +82,8 @@ node tools/test_install_ui.js
 [.gitignore](.gitignore) 已忽略 `Agent.MD` 的大小写变体、本地工作记录、构建产物和密钥。
 
 本项目采用 [MIT 许可证](LICENSE)。
+
+
+## wbot 与元素库
+
+新增持久化元素库，可保存、分组、搜索、编辑和导入导出网页定位器。独立 Python 库提供网页自动化、文件、文本、HTTP、ZIP 和 Excel 等能力。安装、示例与兼容范围见 [wbot 文档](docs/wbot.md)。

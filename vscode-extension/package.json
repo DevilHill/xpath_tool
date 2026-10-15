@@ -1,0 +1,85 @@
+{
+  "name": "wbot-studio",
+  "displayName": "WBot Studio",
+  "description": "在 VS Code 中抓取网页元素、管理元素库、编写与运行 wbot Python 自动化脚本。",
+  "version": "0.1.0",
+  "publisher": "xpath-studio-local",
+  "license": "MIT",
+  "engines": {"vscode": "^1.90.0"},
+  "categories": ["Other", "Snippets", "Programming Languages"],
+  "keywords": ["wbot", "xpath", "python", "automation"],
+  "main": "./extension.js",
+  "extensionKind": ["ui"],
+  "activationEvents": ["onView:wbot.elements"],
+  "capabilities": {
+    "untrustedWorkspaces": {"supported": false, "description": "运行 Python 和启动本机服务需要受信任的工作区。"},
+    "virtualWorkspaces": {"supported": false, "description": "需要本机 Python、文件系统和浏览器。"}
+  },
+  "contributes": {
+    "commands": [
+      {"command":"wbot.startBridge","title":"启动 / 连接浏览器服务","category":"WBot","icon":"$(plug)"},
+      {"command":"wbot.stopBridge","title":"停止本扩展启动的服务","category":"WBot"},
+      {"command":"wbot.refresh","title":"刷新元素库","category":"WBot","icon":"$(refresh)"},
+      {"command":"wbot.pick","title":"从浏览器抓取并保存元素","category":"WBot","icon":"$(target)"},
+      {"command":"wbot.saveLastPick","title":"保存最近一次抓取结果","category":"WBot"},
+      {"command":"wbot.addElement","title":"新增元素","category":"WBot","icon":"$(add)"},
+      {"command":"wbot.editElement","title":"编辑元素","category":"WBot","icon":"$(edit)"},
+      {"command":"wbot.deleteElement","title":"删除元素","category":"WBot","icon":"$(trash)"},
+      {"command":"wbot.insertElement","title":"插入元素调用代码","category":"WBot","icon":"$(code)"},
+      {"command":"wbot.copyXPath","title":"复制 XPath","category":"WBot"},
+      {"command":"wbot.validateElement","title":"在抓取页面校验并高亮","category":"WBot"},
+      {"command":"wbot.search","title":"搜索元素","category":"WBot","icon":"$(search)"},
+      {"command":"wbot.importElements","title":"导入元素库 JSON","category":"WBot"},
+      {"command":"wbot.exportElements","title":"导出元素库 JSON","category":"WBot"},
+      {"command":"wbot.newScript","title":"新建自动化脚本","category":"WBot"},
+      {"command":"wbot.runFile","title":"运行当前 Python 脚本","category":"WBot","icon":"$(play)"},
+      {"command":"wbot.debugFile","title":"调试当前 Python 脚本","category":"WBot","icon":"$(debug-alt)"},
+      {"command":"wbot.selectPython","title":"选择 Python 解释器","category":"WBot"},
+      {"command":"wbot.installRuntime","title":"将 wbot 安装到所选 Python 环境","category":"WBot"},
+      {"command":"wbot.browserExtension","title":"准备浏览器扩展目录","category":"WBot"},
+      {"command":"wbot.openWorkbench","title":"打开定位工作台","category":"WBot"},
+      {"command":"wbot.showOutput","title":"查看输出日志","category":"WBot"},
+      {"command":"wbot.help","title":"使用指南","category":"WBot"}
+    ],
+    "viewsContainers": {"activitybar":[{"id":"wbot","title":"WBot","icon":"assets/wbot.svg"}]},
+    "views": {"wbot":[{"id":"wbot.elements","name":"元素库","contextualTitle":"WBot 元素库"}]},
+    "viewsWelcome": [{"view":"wbot.elements","contents":"在这里管理网页元素并插入 Python 代码。\n[1. 选择 Python](command:wbot.selectPython)\n[2. 安装 wbot](command:wbot.installRuntime)\n[3. 启动浏览器服务](command:wbot.startBridge)\n[4. 准备浏览器扩展](command:wbot.browserExtension)\n[抓取元素](command:wbot.pick) · [新建脚本](command:wbot.newScript)\n[使用指南](command:wbot.help)"}],
+    "menus": {
+      "view/title": [
+        {"command":"wbot.startBridge","when":"view == wbot.elements","group":"navigation@1"},
+        {"command":"wbot.pick","when":"view == wbot.elements","group":"navigation@2"},
+        {"command":"wbot.refresh","when":"view == wbot.elements","group":"navigation@3"},
+        {"command":"wbot.addElement","when":"view == wbot.elements","group":"1_manage@1"},
+        {"command":"wbot.search","when":"view == wbot.elements","group":"1_manage@2"},
+        {"command":"wbot.importElements","when":"view == wbot.elements","group":"2_transfer@1"},
+        {"command":"wbot.exportElements","when":"view == wbot.elements","group":"2_transfer@2"},
+        {"command":"wbot.newScript","when":"view == wbot.elements","group":"3_python@1"},
+        {"command":"wbot.stopBridge","when":"view == wbot.elements","group":"4_service@1"}
+      ],
+      "view/item/context": [
+        {"command":"wbot.insertElement","when":"view == wbot.elements && viewItem == wbot.element","group":"inline@1"},
+        {"command":"wbot.editElement","when":"view == wbot.elements && viewItem == wbot.element","group":"inline@2"},
+        {"command":"wbot.copyXPath","when":"viewItem == wbot.element","group":"1_copy@1"},
+        {"command":"wbot.validateElement","when":"viewItem == wbot.element","group":"2_check@1"},
+        {"command":"wbot.deleteElement","when":"viewItem == wbot.element","group":"3_delete@1"}
+      ],
+      "editor/title": [
+        {"command":"wbot.runFile","when":"resourceExtname == .py && isWorkspaceTrusted","group":"navigation@15"},
+        {"command":"wbot.debugFile","when":"resourceExtname == .py && isWorkspaceTrusted","group":"navigation@16"}
+      ]
+    },
+    "configuration": {"title":"WBot","properties": {
+      "wbot.bridgeUrl":{"type":"string","default":"http://127.0.0.1:8790","scope":"machine","description":"本机浏览器服务地址，只允许 http://127.0.0.1:端口。可连接已有 XPath Studio 1.4.0。"},
+      "wbot.pythonPath":{"type":"string","default":"","scope":"machine-overridable","description":"Python 可执行文件路径，不含命令行参数。留空时使用 Python 扩展的当前解释器、项目 .venv 或 PATH 中的 python。"},
+      "wbot.libraryPath":{"type":"string","default":"","scope":"machine","description":"SQLite 元素库路径。留空使用 ~/.xpath_studio/elements.sqlite3。连接外部服务时应与其配置一致。"},
+      "wbot.scriptArgs":{"type":"array","items":{"type":"string"},"default":[],"description":"运行/调试当前脚本时传入的参数列表。"}
+    }},
+    "snippets": [{"language":"python","path":"snippets/python.json"}]
+  },
+  "scripts": {
+    "prepare-runtime":"node scripts/prepare-runtime.js",
+    "test":"node --test test/core.test.js test/bridge.test.js",
+    "package":"npm run prepare-runtime && vsce package --no-dependencies --out ../dist/wbot-studio-0.1.0.vsix"
+  },
+  "devDependencies": {"@vscode/vsce":"^3.6.0"}
+}

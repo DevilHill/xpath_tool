@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "XPath Studio · 元素定位",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "在浏览器里直接拾取元素、生成稳健 XPath / CSS / Playwright 定位器，并实时高亮页面上所有匹配节点。",
 
   "permissions": ["storage", "activeTab", "tabs", "scripting", "alarms", "webNavigation"],

@@ -112,6 +112,8 @@
   async function validate(xpath, record) {
     const xp = (xpath || $("#xpathInput").value).trim();
     if (!lastPick) return toast("请先在浏览器中抓取元素");
+    if (librarySelection && !libraryScopeMatches(librarySelection))
+      return toast("元素库记录来自其他页面或框架，请先在对应页面重新抓取");
     if (!xp) return toast("请输入 XPath");
     $("#xpathInput").value = xp;
     const id = ++validationId;
@@ -260,6 +262,33 @@
 
   const bridge = { ws: null, retry: 0, timer: null, connected: false, ext: false };
   let lastPick = null;
+  let librarySelection = null;
+  function libraryScopeMatches(record) {
+    const frame = lastPick && lastPick.frame || {};
+    if (record.url && record.url !== (frame.url || lastPick && lastPick.url)) return false;
+    if (record.frame) {
+      for (const key of ["isTop", "frameId", "topUrl"])
+        if (record.frame[key] != null && record.frame[key] !== frame[key]) return false;
+    }
+    return true;
+  }
+  window.XPSWorkbench = {
+    getCurrent() {
+      return { xpath: $("#xpathInput").value.trim(),
+        frame: lastPick && lastPick.frame || null,
+        url: lastPick && (lastPick.frame && lastPick.frame.url || lastPick.url) || "",
+        name: lastPick && (lastPick.text || lastPick.id || lastPick.tag) || "" };
+    },
+    useElement(record) {
+      librarySelection = record;
+      validationId++;
+      $("#xpathInput").value = record.xpath;
+      resetMatches();
+      $("#validateMsg").className = "msg";
+      $("#validateMsg").textContent = "已载入「" + record.name + "」。在对应页面抓取后可校验。";
+      $("#xpathInput").focus();
+    }
+  };
 
   function bridgeWsUrl() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -364,6 +393,7 @@
 
   function renderPick(p) {
     lastPick = p;
+    librarySelection = null;
     validationId++;
     resetMatches();
     $("#validateMsg").textContent = "点击校验，在来源网页中高亮匹配元素";

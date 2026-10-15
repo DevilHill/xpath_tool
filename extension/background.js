@@ -326,11 +326,12 @@ async function runBrowserCommand(msg) {
   var target = msg.target || {};
   if (!lastTarget || target.tabId !== lastTarget.tabId || target.frameId !== lastTarget.frameId ||
       !target.documentId || target.documentId !== lastTarget.documentId)
-    return { ok: false, error: "抓取目标已变更，请重新抓取元素" };
+    return { ok: false, code: "stale_target", error: "抓取目标已变更，请重新抓取元素" };
   if (pickSession) return { ok: false, error: "请先确认或取消当前抓取，再校验 XPath" };
   // 只投递到原始文档；刷新、导航后不注入新页面，也不回退到当前标签页。
   return await chrome.tabs.sendMessage(target.tabId,
-    { type: "browser-validate", action: msg.action, xpath: msg.xpath },
+    { type: msg.action === "validate" || msg.action === "clear" ? "browser-validate" : "wbot-command",
+      action: msg.action, xpath: msg.xpath, options: msg.options || {} },
     { documentId: target.documentId });
 }
 

@@ -685,11 +685,103 @@
     }, opts);
   }
 
+  // wbot 在当前已抓取文档中执行 DOM 动作，每次重新定位并检查唯一性。
+  // 合成 DOM 事件不等同于操作系统输入；不绕过网页对 isTrusted 的检查。
+  function runAutomation(msg) {
+    function fail(code, error) { return { ok: false, code: code, error: error }; }
+    function visible(node) {
+      if (!node.isConnected || !node.getClientRects().length) return false;
+      for (var p = node; p && p.nodeType === 1; p = p.parentElement) {
+        var style = window.getComputedStyle(p);
+        if (style.display === "none" || style.visibility === "hidden" || style.visibility === "collapse") return false;
+      }
+      return true;
+    }
+    var actions = ["query", "click", "input", "text", "attribute", "visible", "enabled", "select", "check", "hover", "scroll"];
+    if (actions.indexOf(msg.action) === -1) return fail("invalid_action", "不支持的网页动作");
+    if (typeof msg.xpath !== "string" || !msg.xpath.trim() || msg.xpath.length > 16384)
+      return fail("invalid_selector", "请提供有效的 XPath");
+    var opts = msg.options || {}, nodes = [], result;
+    try {
+      result = document.evaluate(msg.xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      for (var i = 0; i < result.snapshotLength; i++) {
+        var node = result.snapshotItem(i);
+        if (node.nodeType !== 1) return fail("invalid_selector", "定位器必须返回元素，不能返回属性、文本或标量");
+        if (i < 500) nodes.push(node);
+      }
+    } catch (e) { return fail("invalid_selector", "XPath 无效：" + e.message); }
+    if (msg.action === "query") return { ok: true, result: {
+      count: result.snapshotLength, truncated: result.snapshotLength > nodes.length,
+      items: nodes.map(function (n) {
+        var attrs = {};
+        Array.from(n.attributes).slice(0, 30).forEach(function (a) { attrs[a.name] = a.value.slice(0, 512); });
+        return { tag: n.tagName.toLowerCase(), text: (n.textContent || "").slice(0, 2048), attributes: attrs };
+      })
+    } };
+    if (!result.snapshotLength) return fail("not_found", "没有匹配元素");
+    if (opts.strict !== false && result.snapshotLength !== 1) return fail("ambiguous", "XPath 匹配多个元素，请限定定位器或显式指定索引");
+    var index = opts.index === undefined ? 0 : opts.index;
+    if (!Number.isInteger(index) || index < 0 || index >= nodes.length) return fail("not_found", "元素索引超出可返回范围");
+    var target = nodes[index], value;
+    var enabled = !target.matches(":disabled") && target.getAttribute("aria-disabled") !== "true";
+    if (msg.action === "visible") value = visible(target);
+    else if (msg.action === "enabled") value = enabled;
+    else if (msg.action === "text") value = target.innerText === undefined ? target.textContent : target.innerText;
+    else if (msg.action === "attribute") {
+      if (typeof opts.name !== "string" || !opts.name) return fail("invalid_argument", "属性名称不能为空");
+      value = opts.name === "value" && "value" in target ? target.value : target.getAttribute(opts.name);
+    } else {
+      if (!enabled || !visible(target)) return fail("not_interactable", "元素不可见或已禁用");
+      try {
+        target.scrollIntoView({ block: "center", inline: "nearest" });
+        if (msg.action === "click") target.click();
+        else if (msg.action === "input") {
+          if (typeof opts.value !== "string") return fail("invalid_argument", "输入内容必须是字符串");
+          if (target.readOnly || target.type === "file") return fail("not_interactable", "只读或文件输入框不支持文本赋值");
+          target.focus();
+          if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+            var proto = target.tagName === "INPUT" ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype;
+            Object.getOwnPropertyDescriptor(proto, "value").set.call(target, (opts.append ? target.value : "") + opts.value);
+          } else if (target.isContentEditable) target.textContent = (opts.append ? target.textContent : "") + opts.value;
+          else return fail("not_interactable", "目标不是可输入元素");
+          target.dispatchEvent(new window.Event("input", { bubbles: true }));
+          target.dispatchEvent(new window.Event("change", { bubbles: true }));
+        } else if (msg.action === "select") {
+          if (target.tagName !== "SELECT") return fail("not_interactable", "目标不是下拉框");
+          var matching = Array.from(target.options).filter(function (o) {
+            return (opts.mode === "text" ? o.text : o.value) === opts.value;
+          });
+          if (matching.length > 1) return fail("ambiguous", "多个下拉选项匹配，请使用唯一值");
+          var option = matching[0];
+          if (!option || option.disabled) return fail("not_found", "未找到可用选项值");
+          target.value = option.value;
+          target.dispatchEvent(new window.Event("input", { bubbles: true }));
+          target.dispatchEvent(new window.Event("change", { bubbles: true }));
+        } else if (msg.action === "check") {
+          if (target.tagName !== "INPUT" || ["checkbox", "radio"].indexOf(target.type) === -1 || typeof opts.value !== "boolean")
+            return fail("invalid_argument", "check 需要复选框/单选框和布尔值");
+          if (target.type === "radio" && !opts.value) return fail("invalid_argument", "单选框不能直接取消选中");
+          if (target.checked !== opts.value) target.click();
+          if (target.checked !== opts.value) return fail("not_interactable", "网页阻止了选中状态变更");
+        } else if (msg.action === "hover") {
+          target.dispatchEvent(new window.MouseEvent("mouseover", { bubbles: true }));
+          target.dispatchEvent(new window.MouseEvent("mouseenter", { bubbles: false }));
+        }
+        value = true;
+      } catch (e) { return fail("not_interactable", e.message); }
+    }
+    return { ok: true, result: value };
+  }
+
   /* ------------------------------------------------------------------ *
    * 消息（来自 background）
    * ------------------------------------------------------------------ */
   chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
     if (!msg || !msg.type) return;
+    if (msg.type === "wbot-command") {
+      sendResponse(runAutomation(msg));
+      return true;
+    }
     if (msg.type === "browser-validate") {
       if (msg.action === "clear") {
         clearHighlight();

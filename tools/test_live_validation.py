@@ -21,7 +21,10 @@ from app.ws_bridge import WSClientConn, HUB
 
 class PageHandler(BaseHTTPRequestHandler):
     def do_GET(self):
-        body = ('<button id="inside" style="margin:40px;padding:24px">Live button</button>'
+        body = ('<button id="inside" style="margin:40px;padding:24px" onclick="this.dataset.clicks=String(Number(this.dataset.clicks||0)+1)">Live button</button>'
+                '<input id="field"><input id="check" type="checkbox">'
+                '<select id="choice"><option value="a">甲</option><option value="b">乙</option></select>'
+                '<input id="disabled" disabled><div id="hidden" style="display:none">Hidden</div>'
                 if self.path == '/frame' else
                 f'<button id="inside">Top button</button><iframe width="650" height="400" '
                 f'src="http://localhost:{self.server.server_port}/frame"></iframe>')
@@ -41,6 +44,7 @@ def main():
     work = Path(tempfile.mkdtemp(prefix='live-validation-', dir=ROOT / 'build'))
     from app import server
     server.CONFIG_PATH = work / 'config.json'
+    server.ELEMENTS_PATH = work / 'elements.sqlite3'
     app, port = server.run_server(0)
     page = ThreadingHTTPServer(('127.0.0.1', 0), PageHandler)
     threading.Thread(target=page.serve_forever, daemon=True).start()
@@ -111,10 +115,46 @@ def main():
         check('确认回传成功', evaluate(sid, """(async()=>{await runFrame(()=>document.querySelector('#__xpath_studio_overlay__').shadowRoot.querySelector('[data-action="confirm"]').click());
           for(let i=0;i<100&&pickSession;i++) await new Promise(r=>setTimeout(r,50));return !pickSession&&!!lastTarget;})()"""))
         check('抓取来源带浏览器与文档身份', HUB.last_pick and HUB.last_pick['browserId'] and HUB.last_pick['frame']['documentId'])
+        from wbot import web, selector
+        browser = web.get(base_url=f'http://127.0.0.1:{port}')
+        check('wbot绑定跨域iframe', browser.target['frameId'] != 0)
+        button = browser.find("//button[@id='inside']", timeout=0)
+        check('wbot读取真实网页文本', button.get_text() == 'Live button')
+        button.click()
+        check('wbot点击触发真实页面事件', button.get_attribute('data-clicks') == '1')
+        field = browser.find("//input[@id='field']", timeout=0)
+        field.input('中文')
+        field.input('追加', append=True)
+        check('wbot输入并回读实时value', field.get_value() == '中文追加')
+        browser.find("//input[@id='check']", timeout=0).check()
+        check('wbot复选框动作', evaluate(sid, "runFrame(()=>document.querySelector('#check').checked)"))
+        browser.find("//select[@id='choice']", timeout=0).select('乙', mode='text')
+        check('wbot下拉框按文本选择', evaluate(sid, "runFrame(()=>document.querySelector('#choice').value)") == 'b')
+        check('wbot禁用元素检测', not browser.find("//*[@id='disabled']", timeout=0).is_enabled())
+        check('wbot隐藏元素检测', not browser.find("//*[@id='hidden']", timeout=0).is_visible())
+        saved = server.element_library().upsert({'name': '测试按钮', 'group': '真实浏览器',
+            'xpath': "//button[@id='inside']", 'url': browser.url, 'frame': browser.target})
+        stored = selector.SelectorStore(server.ELEMENTS_PATH).get('测试按钮', '真实浏览器')
+        check('元素库存盘后按名称执行', browser.find(stored, timeout=0).get_text() == 'Live button')
         ui_target = call('Target.createTarget', {'url': f'http://127.0.0.1:{port}/'})['targetId']
         ui = call('Target.attachToTarget', {'targetId': ui_target, 'flatten': True})['sessionId']
         assert wait_document(ui)
         check('桌面刷新恢复抓取来源且移除旧面板', evaluate(ui, "new Promise(r=>{let n=0;const t=setInterval(()=>{if(document.querySelector('#xpathInput').value||++n>100){clearInterval(t);r(!document.querySelector('#domTree')&&!document.querySelector('#htmlInput')&&!!document.querySelector('#xpathInput').value);}},50);})"))
+        check('元素库真实界面保存', evaluate(ui, """(async()=>{
+          const root=document.querySelector('#elementLibrary'),q=k=>root.querySelector('[data-el="'+k+'"]');
+          q('capture').click(); if(!q('dialog').open)return false;
+          q('name').value='界面保存按钮';q('edit-group').value='界面测试';q('submit').click();
+          for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,30));if(!q('dialog').open&&q('list').textContent.includes('界面保存按钮'))return true;}
+          return false;})()"""))
+        check('元素库保存后Python按名称读取', selector.SelectorStore(server.ELEMENTS_PATH).get('界面保存按钮', '界面测试').xpath() == HUB.last_pick['xpath'])
+        check('元素库真实搜索与复用', evaluate(ui, """(async()=>{
+          const root=document.querySelector('#elementLibrary'),q=k=>root.querySelector('[data-el="'+k+'"]');
+          q('search').value='界面保存';q('search').dispatchEvent(new Event('input',{bubbles:true}));
+          const cards=root.querySelectorAll('.el-card');if(cards.length!==1)return false;
+          [...cards[0].querySelectorAll('button')].find(b=>b.textContent==='使用').click();
+          await Promise.resolve();
+          q('search').value='';q('search').dispatchEvent(new Event('input',{bubbles:true}));
+          return document.querySelector('#validateMsg').textContent.includes('界面保存按钮');})()"""))
 
         def validate(xpath):
             return evaluate(ui, """(async()=>{document.querySelector('#xpathInput').value=XP;
@@ -133,6 +173,13 @@ def main():
         evaluate(sid, "runFrame(()=>document.body.appendChild(document.querySelector('#inside').cloneNode(true)))")
         result = validate("//button[@id='inside']")
         check('DOM 变化后按实时页面匹配两个节点', result['count'] == '2' and overlay_count() == 2)
+        from wbot.errors import AmbiguousElementError
+        try:
+            button.click()
+            check('wbot动作时重新检查唯一性', False)
+        except AmbiguousElementError:
+            check('wbot动作时重新检查唯一性', True)
+        check('wbot find_all返回两个显式索引', len(browser.find_all('//button', timeout=0)) == 2)
         result = validate('//missing')
         check('零匹配清除此前高亮', result['count'] == '0' and overlay_count() == 0)
         validate("//button[@id='inside']")
@@ -148,10 +195,20 @@ def main():
         out = ROOT / 'output/playwright'
         out.mkdir(parents=True, exist_ok=True)
         (out / 'workbench-live.png').write_bytes(base64.b64decode(shot))
+        call('Emulation.setDeviceMetricsOverride', {'width': 390, 'height': 844, 'deviceScaleFactor': 1, 'mobile': False}, ui)
+        check('元素库窄屏布局没有页面横向溢出', evaluate(ui, 'document.documentElement.scrollWidth<=innerWidth'))
+        (out / 'wbot-mobile.png').write_bytes(base64.b64decode(call('Page.captureScreenshot', {'format': 'png'}, ui)['data']))
+        call('Emulation.clearDeviceMetricsOverride', {}, ui)
         evaluate(sid, 'chrome.tabs.reload(testTab.id)')
         time.sleep(.5)
         result = validate('//button')
         check('页面刷新后不高亮新文档并要求重新抓取', '重新抓取' in result['msg'])
+        from wbot.errors import WbotError
+        try:
+            field.input('不应写入新页面')
+            check('wbot拒绝操作刷新后的新文档', False)
+        except WbotError:
+            check('wbot拒绝操作刷新后的新文档', True)
         print(f'实时联动：{checks} 项通过', flush=True)
         return 0
     finally:

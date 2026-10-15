@@ -235,15 +235,19 @@ class Hub:
         self.last_pick_at = time.time()
 
     def request_browser(self, target: dict, action: str, xpath: str = "",
-                        timeout: float = 8.0) -> dict:
+                        timeout: float = 8.0, options: dict | None = None) -> dict:
         """只向抓取来源发起实时校验，等待该连接的确认结果。"""
         if not isinstance(target, dict) or not target.get("browserId") or not target.get("documentId"):
             return {"ok": False, "error": "请更新扩展并重新抓取元素，再校验 XPath"}
         if (type(target.get("tabId")) is not int or type(target.get("frameId")) is not int
                 or target["tabId"] < 0 or target["frameId"] < 0):
             return {"ok": False, "error": "抓取来源不完整，请重新抓取"}
-        if action not in ("validate", "clear") or not isinstance(xpath, str) or len(xpath) > 16384:
+        actions = ("validate", "clear", "query", "click", "input", "text", "attribute",
+                   "visible", "enabled", "select", "check", "hover", "scroll")
+        if action not in actions or not isinstance(xpath, str) or len(xpath) > 16384:
             return {"ok": False, "error": "校验请求无效"}
+        if options is not None and not isinstance(options, dict):
+            return {"ok": False, "error": "动作参数必须是对象"}
         request_id = os.urandom(16).hex()
         event, result = threading.Event(), {}
         with self._lock:
@@ -257,7 +261,8 @@ class Hub:
             self._requests[request_id] = (owner, event, result)
         try:
             sent = owner.send_json({"type": "browser-command", "requestId": request_id,
-                                    "target": target, "action": action, "xpath": xpath})
+                                    "target": target, "action": action, "xpath": xpath,
+                                    "options": options or {}})
             if not sent:
                 return {"ok": False, "error": "无法通知目标浏览器，请重新抓取"}
             if not event.wait(timeout):

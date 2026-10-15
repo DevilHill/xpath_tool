@@ -146,7 +146,7 @@ def main() -> int:
             html = r.read().decode("utf-8")
         print(f"[2] GET /            -> {r.status}, 含标题: {'XPath Studio' in html}")
         served: dict[str, bytes] = {"index.html": html.encode("utf-8")}
-        for asset in ("app.js", "style.css", "app.ico"):
+        for asset in ("app.js", "style.css", "app.ico", "element-library.js", "element-library.css"):
             try:
                 with urllib.request.urlopen(f"{BASE}/{asset}", timeout=10) as r:
                     served[asset] = r.read()
@@ -280,6 +280,16 @@ def main() -> int:
             "CRX 内的 crx_id 与 update.xml 的 appid 不一致"
         print(f"[15] /extension/extension.crx -> {len(crx_bytes)} 字节，"
               f"CRX3 合法、含 {len(names)} 个文件、appid 与 update.xml 一致 ✅")
+
+        st, saved_element = call("/api/elements/save", {"record": {
+            "name": "打包验证元素", "group": "构建验证", "xpath": "//button[@id='verify']"}})
+        assert st == 200 and saved_element.get("ok"), saved_element
+        record_id = saved_element["item"]["id"]
+        st, exported = call("/api/elements/export", method="GET")
+        assert st == 200 and any(item["id"] == record_id for item in exported["data"]["items"])
+        st, deleted = call("/api/elements/delete", {"id": record_id})
+        assert st == 200 and deleted.get("deleted"), deleted
+        print("[16] 元素库打包模块 -> 保存、导出、删除真实SQLite记录 ✅")
 
         # 不调用 /api/extension/install：它会真的启动浏览器（会弹窗）。
         # 安装逻辑本身由 tools/test_extension_installer.py（56 项，桩掉 Popen）
