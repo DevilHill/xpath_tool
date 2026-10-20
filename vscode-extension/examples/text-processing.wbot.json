@@ -1,0 +1,13 @@
+{
+  "format": "wbot-flow",
+  "version": 1,
+  "name": "文本处理入门",
+  "variables": {"customer": "张三"},
+  "steps": [
+    {"id":"demo-1","type":"set","label":"准备欢迎语","enabled":true,"params":{"output":"message","value":"你好，${customer}！欢迎使用 WBot。"}},
+    {"id":"demo-2","type":"replace","label":"调整欢迎语","enabled":true,"params":{"text":"${message}","old":"你好","new":"您好","output":"message"}},
+    {"id":"demo-3","type":"file.write","label":"保存到工作区文件","enabled":true,"params":{"path":"output/wbot-demo.txt","text":"${message}"}},
+    {"id":"demo-4","type":"file.read","label":"读取保存的结果","enabled":true,"params":{"path":"output/wbot-demo.txt","output":"result"}},
+    {"id":"demo-5","type":"log","label":"查看结果","enabled":true,"params":{"text":"${result}"}}
+  ]
+}

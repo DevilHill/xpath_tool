@@ -6,14 +6,14 @@ import zipfile
 
 extension = Path(__file__).resolve().parents[1]
 root = extension.parent
-package = root / 'dist/wbot-studio-0.1.0.vsix'
+package = root / 'dist/wbot-studio-0.3.0.vsix'
 checked = 0
 with zipfile.ZipFile(package) as archive:
     names = set(archive.namelist())
     assert not any('/node_modules/' in name or '/test/' in name or name.endswith('.sqlite3') for name in names)
     manifest = json.loads(archive.read('extension/package.json'))
     assert manifest['capabilities']['untrustedWorkspaces']['supported'] is False
-    assert len(manifest['contributes']['commands']) == 23
+    assert len(manifest['contributes']['commands']) == 24
     for name in names:
         if not name.startswith('extension/') or name.endswith('/'):
             continue
@@ -27,8 +27,8 @@ with zipfile.ZipFile(package) as archive:
             inside = relative.removeprefix('runtime/')
             if inside.startswith(('app/', 'wbot/', 'extension/')):
                 source = root / inside
-            elif inside == 'bridge_server.py':
-                source = extension / 'scripts/bridge_server.py'
+            elif inside in ('bridge_server.py', 'flow_runner.py'):
+                source = extension / 'scripts' / inside
         assert source.is_file(), source
         assert archive.read(name) == source.read_bytes(), name
         checked += 1

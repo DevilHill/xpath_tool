@@ -1,0 +1,13 @@
+{
+  "format": "wbot-flow",
+  "version": 1,
+  "name": "断点单步入门",
+  "variables": {"message": "初始值"},
+  "steps": [
+    {"id":"debug-set","type":"set","label":"先单步设置变量","enabled":true,"breakpoint":false,"params":{"output":"message","value":"你好，WBot"}},
+    {"id":"debug-replace","type":"replace","label":"将你好替换为您好","enabled":true,"breakpoint":false,"params":{"text":"${message}","old":"你好","new":"您好","output":"message"}},
+    {"id":"debug-check","type":"log","label":"检查替换后的值","enabled":true,"breakpoint":true,"params":{"text":"${message}"}},
+    {"id":"debug-skipped","type":"log","label":"禁用的指令会跳过","enabled":false,"breakpoint":true,"params":{"text":"这条不会执行"}},
+    {"id":"debug-end","type":"log","label":"完成调试","enabled":true,"breakpoint":false,"params":{"text":"断点单步演示完成"}}
+  ]
+}

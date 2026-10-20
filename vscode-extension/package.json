@@ -2,7 +2,7 @@
   "name": "wbot-studio",
   "displayName": "WBot Studio",
   "description": "在 VS Code 中抓取网页元素、管理元素库、编写与运行 wbot Python 自动化脚本。",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "publisher": "xpath-studio-local",
   "license": "MIT",
   "engines": {"vscode": "^1.90.0"},
@@ -10,13 +10,14 @@
   "keywords": ["wbot", "xpath", "python", "automation"],
   "main": "./extension.js",
   "extensionKind": ["ui"],
-  "activationEvents": ["onView:wbot.elements"],
+  "activationEvents": ["onView:wbot.elements", "onCustomEditor:wbot.flowEditor"],
   "capabilities": {
     "untrustedWorkspaces": {"supported": false, "description": "运行 Python 和启动本机服务需要受信任的工作区。"},
     "virtualWorkspaces": {"supported": false, "description": "需要本机 Python、文件系统和浏览器。"}
   },
   "contributes": {
     "commands": [
+      {"command":"wbot.newFlow","title":"新建可视化流程","category":"WBot","icon":"$(list-tree)"},
       {"command":"wbot.startBridge","title":"启动 / 连接浏览器服务","category":"WBot","icon":"$(plug)"},
       {"command":"wbot.stopBridge","title":"停止本扩展启动的服务","category":"WBot"},
       {"command":"wbot.refresh","title":"刷新元素库","category":"WBot","icon":"$(refresh)"},
@@ -41,11 +42,13 @@
       {"command":"wbot.showOutput","title":"查看输出日志","category":"WBot"},
       {"command":"wbot.help","title":"使用指南","category":"WBot"}
     ],
+    "customEditors": [{"viewType":"wbot.flowEditor","displayName":"WBot 流程编辑器","selector":[{"filenamePattern":"*.wbot.json"}],"priority":"default"}],
     "viewsContainers": {"activitybar":[{"id":"wbot","title":"WBot","icon":"assets/wbot.svg"}]},
     "views": {"wbot":[{"id":"wbot.elements","name":"元素库","contextualTitle":"WBot 元素库"}]},
-    "viewsWelcome": [{"view":"wbot.elements","contents":"在这里管理网页元素并插入 Python 代码。\n[1. 选择 Python](command:wbot.selectPython)\n[2. 安装 wbot](command:wbot.installRuntime)\n[3. 启动浏览器服务](command:wbot.startBridge)\n[4. 准备浏览器扩展](command:wbot.browserExtension)\n[抓取元素](command:wbot.pick) · [新建脚本](command:wbot.newScript)\n[使用指南](command:wbot.help)"}],
+    "viewsWelcome": [{"view":"wbot.elements","contents":"[＋ 新建可视化流程](command:wbot.newFlow)\n\n在这里管理网页元素并插入 Python 代码。\n[1. 选择 Python](command:wbot.selectPython)\n[2. 安装 wbot](command:wbot.installRuntime)\n[3. 启动浏览器服务](command:wbot.startBridge)\n[4. 准备浏览器扩展](command:wbot.browserExtension)\n[抓取元素](command:wbot.pick) · [新建脚本](command:wbot.newScript)\n[使用指南](command:wbot.help)"}],
     "menus": {
       "view/title": [
+        {"command":"wbot.newFlow","when":"view == wbot.elements","group":"navigation@0"},
         {"command":"wbot.startBridge","when":"view == wbot.elements","group":"navigation@1"},
         {"command":"wbot.pick","when":"view == wbot.elements","group":"navigation@2"},
         {"command":"wbot.refresh","when":"view == wbot.elements","group":"navigation@3"},
@@ -78,8 +81,8 @@
   },
   "scripts": {
     "prepare-runtime":"node scripts/prepare-runtime.js",
-    "test":"node --test test/core.test.js test/bridge.test.js",
-    "package":"npm run prepare-runtime && vsce package --no-dependencies --out ../dist/wbot-studio-0.1.0.vsix"
+    "test":"node --test test/core.test.js test/bridge.test.js test/flow.test.js test/flow-debug.test.js",
+    "package":"npm run prepare-runtime && vsce package --no-dependencies --out ../dist/wbot-studio-0.3.0.vsix"
   },
   "devDependencies": {"@vscode/vsce":"^3.6.0"}
 }

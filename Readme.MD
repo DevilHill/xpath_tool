@@ -10,7 +10,7 @@
 
 [工作台截图](docs/images/workbench-live.png) · [扩展说明](extension/README.md)
 
-也可以在 **VS Code** 中完成元素库管理、抓取和 Python 脚本运行：安装 `wbot-studio-0.1.0.vsix`，使用 WBot 侧栏。安装与配置见 [WBot Studio 使用指南](vscode-extension/README.md)。
+也可以在 **VS Code** 中完成可视化流程编排、断点单步调试、元素库管理、抓取和 Python 脚本运行：安装 `wbot-studio-0.3.0.vsix`，执行 **WBot: 新建可视化流程** 或使用 WBot 侧栏。安装与配置见 [WBot Studio 使用指南](vscode-extension/README.md)。
 
 ## 获取代码
 

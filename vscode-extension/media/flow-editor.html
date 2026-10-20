@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src __CSP_SOURCE__; script-src 'nonce-__NONCE__';">
+  <link rel="stylesheet" href="__flow-editor.css__">
+  <title>WBot 流程编辑器</title>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">W</span><div><b>WBot Studio</b><small>可视化自动化工作台</small></div><span class="version">PREVIEW</span></div>
+    <div class="actions"><button data-action="source">查看 JSON</button><button data-action="save">保存 <kbd>Ctrl S</kbd></button><span class="separator"></span><button id="run" class="primary" data-action="run" title="从头连续执行，忽略断点">▶ 运行流程</button><button id="debug" data-action="debug" title="从头调试，在首条启用指令前暂停；继续时遇到断点暂停">◉ 调试</button><button id="pause" data-action="pause" title="当前指令完成后，在下一条指令执行前暂停" disabled>Ⅱ 暂停</button><button id="resume" data-action="resume" title="继续执行；调试模式下遇到下一断点暂停" disabled>▷ 继续</button><button id="step" data-action="step" title="执行当前指令，然后在下一条启用指令前暂停" disabled>↦ 单步</button><button id="stop" data-action="stop" disabled>■ 停止</button></div>
+  </header>
+  <div id="notice" class="notice" role="alert" hidden></div>
+  <div class="workspace">
+    <aside class="library">
+      <div class="section-head"><b>指令库</b><span id="command-count"></span></div>
+      <div class="search-wrap"><input id="search" placeholder="搜索指令…" aria-label="搜索指令"></div>
+      <div id="catalog"></div>
+      <div class="library-foot"><span class="status-dot"></span>11 类常用指令<br><small>点击或拖入流程，开始编排</small></div>
+    </aside>
+    <main class="main">
+      <div class="flow-head"><div><span class="eyebrow">WORKFLOW / 主流程</span><input id="flow-name" aria-label="流程名称" value="正在加载…" maxlength="200"></div><span id="saved-state">加载中</span></div>
+      <div class="flow-tools"><span id="step-count">0 条指令</span><div><button data-action="undo" title="撤销">↶ 撤销</button><button data-action="redo" title="重做">↷ 重做</button><span class="separator"></span><button data-action="up" title="上移">↑</button><button data-action="down" title="下移">↓</button><button data-action="duplicate">复制</button><button data-action="delete">删除</button></div></div>
+      <div id="debug-status" class="debug-status" role="status" aria-live="polite" hidden></div>
+      <div class="canvas" id="canvas"><div class="endpoint"><span>●</span> 开始</div><div id="steps"></div><div id="empty" hidden>从左侧添加第一条指令<br><small>设置变量 → 处理数据 → 输出结果</small></div><button class="drop-end" id="drop-end">＋ 将指令拖到这里，或点击左侧指令添加</button><div class="endpoint"><span>◎</span> 结束</div></div>
+      <section class="console">
+        <div class="console-head"><div class="tabs"><button class="active" data-tab="logs">运行日志 <span id="log-count">0</span></button><button data-tab="variables">变量 <span id="variable-count">0</span></button></div><div><span id="run-status">就绪</span><button id="clear-logs" title="清空日志">清空</button></div></div>
+        <div id="logs" role="log"><div class="log-empty">准备就绪。运行流程后，可在这里查看每一步的执行结果。</div></div>
+        <div id="variables" hidden><div class="variable-tools"><span id="variables-label">初始变量 · 文本类型</span><button id="add-variable">＋ 添加变量</button></div><div id="variable-list"></div></div>
+      </section>
+    </main>
+    <aside class="inspector">
+      <div class="section-head"><b>指令配置</b><span id="selected-number">—</span></div>
+      <div id="properties"><div class="inspector-empty">选择一条指令<br><small>在这里设置参数与输出变量</small></div></div>
+      <section class="elements"><div class="section-head"><b>元素库</b><button id="load-elements">刷新</button></div><p class="hint">选择元素后，填入当前网页指令。</p><div id="element-list"><span class="hint">启动 WBot 浏览器服务后刷新。</span></div><button data-action="pick" class="wide">⌖ 抓取网页元素</button></section>
+    </aside>
+  </div>
+  <footer><span id="footer-name">WBot Flow</span><span>本机执行 <i>·</i> Python + wbot <i>·</i> 流程格式 v1</span></footer>
+  <script nonce="__NONCE__" src="__flow-model.js__"></script>
+  <script nonce="__NONCE__" src="__flow-editor.js__"></script>
+</body>
+</html>
