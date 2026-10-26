@@ -8,9 +8,21 @@
 - 稳定祖先锚定、动态属性识别、定位器评分。
 - 绑定抓取来源的浏览器、标签页及 iframe，按实际 DOM 校验。
 
-[工作台截图](docs/images/workbench-live.png) · [扩展说明](extension/README.md)
+[界面截图](#界面截图) · [扩展说明](extension/README.md)
 
 也可以在 **VS Code** 中完成可视化流程编排、断点单步调试、元素库管理、抓取和 Python 脚本运行：安装 `wbot-studio-0.3.0.vsix`，执行 **WBot: 新建可视化流程** 或使用 WBot 侧栏。安装与配置见 [WBot Studio 使用指南](vscode-extension/README.md)。
+
+## 界面截图
+
+**XPath Studio 定位工作台**：抓取网页元素、查看候选定位器、编辑 XPath，并校验匹配结果。
+
+![XPath Studio 定位工作台：左侧为抓取元素及候选定位器，右侧为 XPath 匹配结果](docs/images/workbench-live.png)
+
+**WBot Studio 流程编辑器（0.3.0）**：左侧指令库、中间流程、右侧参数与元素库，底部查看变量和日志。断点暂停时，高亮下一条待执行指令，可继续或单步执行。
+
+![WBot Studio 流程编辑器：断点暂停在替换文本指令，底部显示当前变量值](docs/images/wbot-studio-debug.png)
+
+WBot 截图来自编辑器预览页，断点与变量状态使用示例数据展示；实际流程执行在 VS Code 中完成。
 
 ## 获取代码
 
